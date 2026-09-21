@@ -1,0 +1,14 @@
+# Configuración de test con el resultado y la latencia de los providers forzados por variable de entorno
+# (testing.md §3.4). Se combina con el compose principal:
+#   docker compose -f docker-compose.yml -f docker-compose.test.yml up -d backend frontend
+#
+# Por defecto fuerza lo que necesita el E2E: Provider C con HTTP 500, siempre. Para la suite de
+# tiempo real, `make test-realtime` sobrescribe las variables (pico de C y B a 1800 ms).
+name: comparator-test
+
+services:
+  backend:
+    environment:
+      MARKETING_CAMPAIGN_ACTIVE: "false"
+      SIMULATION_FORCE: ${SIMULATION_FORCE:-provider-c=http_error}
+      SIMULATION_LATENCY_MS: ${SIMULATION_LATENCY_MS:-}

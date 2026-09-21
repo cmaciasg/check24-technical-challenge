@@ -1,0 +1,80 @@
+# Configuración de servicios. Los providers se registran solos: ProviderPort lleva un atributo
+# de autoconfiguración que etiqueta todo servicio que lo implemente (architecture.md §1).
+parameters:
+    # Timeout único de los providers (providers.md §5.1). Mayor que el máximo de B (1800) y menor que el pico mínimo de C (2500).
+    app.providers.timeout_ms: 2000
+    # URL desde la que los adapters llaman a los providers simulados (el propio backend, por HTTP de loopback).
+    app.providers.base_url: '%env(PROVIDERS_BASE_URL)%'
+
+    # Comportamiento simulado de cada provider (providers.md §3). Los porcentajes son sobre el total de llamadas.
+    app.providers.simulation:
+        provider-a:
+            normal_latency_ms: [80, 200]
+        provider-b:
+            normal_latency_ms: [1200, 1800]
+        provider-c:
+            normal_latency_ms: [150, 400]
+            spike_latency_ms: [2500, 4000]
+            spike_percent: 10
+            http_error_percent: 3
+            malformed_percent: 2
+
+    # Campaña de marketing: una sola, activada por configuración (product.md §4.1).
+    app.marketing.campaign.active: '%env(bool:MARKETING_CAMPAIGN_ACTIVE)%'
+    app.marketing.campaign.discount_type: '%env(MARKETING_CAMPAIGN_DISCOUNT_TYPE)%'
+    app.marketing.campaign.discount_value: '%env(float:MARKETING_CAMPAIGN_DISCOUNT_VALUE)%'
+
+services:
+    _defaults:
+        autowire: true
+        autoconfigure: true
+
+    App\:
+        resource: '../src/'
+
+    # Interfaces con más de una implementación: se fija cuál se inyecta.
+    App\ProviderSimulation\ProviderOutcomePicker: '@App\ProviderSimulation\RandomProviderOutcomePicker'
+    App\Comparator\CarInsurance\Application\Compare\ComparisonMetrics: '@App\Comparator\CarInsurance\Infra\Observability\PrometheusComparisonMetrics'
+
+    Prometheus\Storage\Adapter:
+        factory: ['App\Observability\MetricsStorageFactory', 'create']
+        arguments: ['%env(METRICS_STORAGE)%']
+
+    Prometheus\CollectorRegistry:
+        arguments:
+            $storageAdapter: '@Prometheus\Storage\Adapter'
+            $registerDefaultMetrics: false
+
+    App\Observability\Logging\JsonLineFormatter: ~
+
+when@test:
+    services:
+        _defaults:
+            autowire: true
+            autoconfigure: true
+
+        # Los providers simulados se atienden dentro del mismo proceso, sin HTTP real ni esperas (testing.md §3.2).
+        App\Tests\Support\ForcedOutcomePicker:
+            public: true
+        App\ProviderSimulation\ProviderOutcomePicker: '@App\Tests\Support\ForcedOutcomePicker'
+        App\Tests\Support\InProcessProviderHttpClient: ~
+        Symfony\Contracts\HttpClient\HttpClientInterface: '@App\Tests\Support\InProcessProviderHttpClient'
+
+        # Doble de métricas con almacén en memoria accesible desde el test (TC-O3).
+        Prometheus\Storage\InMemory:
+            public: true
+        Prometheus\Storage\Adapter: '@Prometheus\Storage\InMemory'
+        Prometheus\CollectorRegistry:
+            public: true
+            arguments:
+                $storageAdapter: '@Prometheus\Storage\InMemory'
+                $registerDefaultMetrics: false
+
+        # Métricas reales que pueden forzar un 500 (TC-O2): un fallo propio, que ningún provider puede causar.
+        App\Tests\Support\SwitchableFailingMetrics:
+            public: true
+        App\Comparator\CarInsurance\Application\Compare\ComparisonMetrics: '@App\Tests\Support\SwitchableFailingMetrics'
+
+        # Capturador de logs para TC-O2.
+        App\Tests\Support\LogCapture:
+            public: true

@@ -1,0 +1,70 @@
+# Sistema completo: frontend, backend (con los providers simulados), Prometheus y Grafana.
+#   docker compose up            -> http://localhost:8080 (app), :3000 (Grafana), :9090 (Prometheus)
+name: comparator
+
+services:
+  backend:
+    build: ./backend
+    environment:
+      APP_ENV: prod
+      APP_DEBUG: "0"
+      APP_SECRET: ${APP_SECRET:-change-me-in-real-deployments}
+      # Los adapters llaman a los providers simulados por HTTP de loopback: el propio backend.
+      PROVIDERS_BASE_URL: http://127.0.0.1:80
+      # PHP-FPM no comparte memoria entre peticiones: los contadores viven en APCu.
+      METRICS_STORAGE: apcu
+      # Campaña de marketing (product.md §4.1). Ej.: MARKETING_CAMPAIGN_ACTIVE=true docker compose up
+      MARKETING_CAMPAIGN_ACTIVE: ${MARKETING_CAMPAIGN_ACTIVE:-false}
+      MARKETING_CAMPAIGN_DISCOUNT_TYPE: ${MARKETING_CAMPAIGN_DISCOUNT_TYPE:-PERCENTAGE}
+      MARKETING_CAMPAIGN_DISCOUNT_VALUE: ${MARKETING_CAMPAIGN_DISCOUNT_VALUE:-10}
+      SIMULATION_FORCE: ${SIMULATION_FORCE:-}
+      SIMULATION_LATENCY_MS: ${SIMULATION_LATENCY_MS:-}
+    # Sin puertos publicados: /metrics solo lo alcanza Prometheus por la red interna.
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1/metrics"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 5s
+
+  frontend:
+    build: ./frontend
+    ports:
+      - "${FRONTEND_PORT:-8080}:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+
+  prometheus:
+    image: prom/prometheus:v3.5.0
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=2d
+    volumes:
+      - ./observability/prometheus:/etc/prometheus:ro
+      - prometheus-data:/prometheus
+    ports:
+      - "9090:9090"
+    depends_on:
+      backend:
+        condition: service_healthy
+
+  grafana:
+    image: grafana/grafana:12.1.0
+    environment:
+      # Acceso anónimo de solo lectura: decisión de demo, no de producción (observability.md §8.2).
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-change-me}
+      GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: /var/lib/grafana/dashboards/comparator-overview.json
+    volumes:
+      - ./observability/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./observability/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    ports:
+      - "3000:3000"
+    depends_on:
+      - prometheus
+
+volumes:
+  prometheus-data:

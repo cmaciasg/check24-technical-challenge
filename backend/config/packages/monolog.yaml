@@ -1,0 +1,26 @@
+monolog:
+    channels:
+        - deprecation
+
+# Una línea JSON por evento a la salida de error: `docker compose logs backend` (observability.md §4.1).
+# El canal `request` del framework se excluye: incluye el mensaje de la excepción (puede citar datos
+# personales) y lo sustituye el evento `comparison.failed` (observability.md §4.5).
+when@dev: &stderr_json_logs
+    monolog:
+        handlers:
+            main:
+                type: stream
+                path: php://stderr
+                level: info
+                formatter: App\Observability\Logging\JsonLineFormatter
+                channels: ['!request', '!event', '!deprecation', '!http_client']
+
+when@prod: *stderr_json_logs
+
+when@test:
+    monolog:
+        handlers:
+            main:
+                type: service
+                id: App\Tests\Support\LogCapture
+                channels: ['!request', '!event', '!deprecation', '!http_client']

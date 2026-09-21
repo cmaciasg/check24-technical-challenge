@@ -1,0 +1,775 @@
+# Tests de las reglas de alerta con promtool (observability.md §10, TC-O4).
+# Para cada alerta: un caso que la dispara y otro que no. Además, la guarda de tráfico mínimo, el
+# umbral por defecto frente a la excepción de provider-c y BackendDown.
+# Se ejecutan con `make test-alerts`. Generado con series sintéticas de 1 muestra por minuto.
+rule_files:
+  - ../alerts.yml
+
+evaluation_interval: 1m
+
+tests:
+  # TC-O4 — BackendDown dispara
+  - interval: 1m
+    input_series:
+      - series: 'up{job="backend"}'
+        values: '0x40'
+    alert_rule_test:
+      - eval_time: 5m
+        alertname: BackendDown
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              job: backend
+            exp_annotations:
+              summary: "El backend no responde al scrape de /metrics"
+              action: "Revisar que el contenedor backend esté arrancado y sus logs de arranque."
+
+  # TC-O4 — BackendDown no dispara con el backend arriba
+  - interval: 1m
+    input_series:
+      - series: 'up{job="backend"}'
+        values: '1x40'
+    alert_rule_test:
+      - eval_time: 5m
+        alertname: BackendDown
+        exp_alerts: []
+
+  # TC-O4 — ComparisonErrors dispara con un 10 % de 500
+  - interval: 1m
+    input_series:
+      - series: 'comparison_requests_total{outcome="error"}'
+        values: '0+2x40'
+      - series: 'comparison_requests_total{outcome="complete"}'
+        values: '0+18x40'
+    alert_rule_test:
+      - eval_time: 20m
+        alertname: ComparisonErrors
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+            exp_annotations:
+              summary: "Más del 1 % de las comparaciones acaban en 500"
+              action: "Es un fallo propio, nunca de un provider: buscar comparison.failed en los logs (exception_class y traza)."
+
+  # TC-O4 — ComparisonErrors no dispara sin errores
+  - interval: 1m
+    input_series:
+      - series: 'comparison_requests_total{outcome="error"}'
+        values: '0x40'
+      - series: 'comparison_requests_total{outcome="complete"}'
+        values: '0+20x40'
+    alert_rule_test:
+      - eval_time: 20m
+        alertname: ComparisonErrors
+        exp_alerts: []
+
+  # TC-O4 — ComparisonErrors guarda de tráfico mínimo: un error suelto con poco volumen no dispara
+  - interval: 1m
+    input_series:
+      - series: 'comparison_requests_total{outcome="error"}'
+        values: '0 0 0 1 1 1 2 2 2 3 3 3 4 4 4 5 5 5 6 6 6 7 7 7 8 8 8 9 9 9 10 10 10 11 11 11 12 12 12 13 13'
+    alert_rule_test:
+      - eval_time: 20m
+        alertname: ComparisonErrors
+        exp_alerts: []
+
+  # TC-O4 — ComparisonErrors ignora los 400 (solo dashboard)
+  - interval: 1m
+    input_series:
+      - series: 'comparison_requests_total{outcome="error"}'
+        values: '0x40'
+      - series: 'comparison_requests_total{outcome="invalid"}'
+        values: '0+50x40'
+      - series: 'comparison_requests_total{outcome="complete"}'
+        values: '0+20x40'
+    alert_rule_test:
+      - eval_time: 20m
+        alertname: ComparisonErrors
+        exp_alerts: []
+
+  # TC-O4 — ComparisonEmptyResults dispara con un 10 % de vacías
+  - interval: 1m
+    input_series:
+      - series: 'comparison_requests_total{outcome="empty"}'
+        values: '0+2x40'
+      - series: 'comparison_requests_total{outcome="complete"}'
+        values: '0+18x40'
+    alert_rule_test:
+      - eval_time: 20m
+        alertname: ComparisonEmptyResults
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+            exp_annotations:
+              summary: "Más del 5 % de las comparaciones no devuelve ninguna oferta"
+              action: "Los tres providers fallan a la vez (línea base 0 %): mirar provider.call.failed y sospechar de red o del cliente HTTP propio."
+
+  # TC-O4 — ComparisonEmptyResults no dispara sin resultados vacíos
+  - interval: 1m
+    input_series:
+      - series: 'comparison_requests_total{outcome="empty"}'
+        values: '0x40'
+      - series: 'comparison_requests_total{outcome="partial"}'
+        values: '0+3x40'
+      - series: 'comparison_requests_total{outcome="complete"}'
+        values: '0+17x40'
+    alert_rule_test:
+      - eval_time: 20m
+        alertname: ComparisonEmptyResults
+        exp_alerts: []
+
+  # TC-O4 — ComparisonEmptyResults guarda de tráfico mínimo
+  - interval: 1m
+    input_series:
+      - series: 'comparison_requests_total{outcome="empty"}'
+        values: '0 0 0 1 1 1 2 2 2 3 3 3 4 4 4 5 5 5 6 6 6 7 7 7 8 8 8 9 9 9 10 10 10 11 11 11 12 12 12 13 13'
+    alert_rule_test:
+      - eval_time: 20m
+        alertname: ComparisonEmptyResults
+        exp_alerts: []
+
+  # TC-O4 — ComparisonLatencyHigh dispara con p95 por encima de 2,3 s
+  - interval: 1m
+    input_series:
+      - series: 'comparison_requests_total{outcome="complete"}'
+        values: '0+10x40'
+      - series: 'comparison_duration_seconds_bucket{le="0.5"}'
+        values: '0x40'
+      - series: 'comparison_duration_seconds_bucket{le="1"}'
+        values: '0x40'
+      - series: 'comparison_duration_seconds_bucket{le="1.25"}'
+        values: '0x40'
+      - series: 'comparison_duration_seconds_bucket{le="1.5"}'
+        values: '0x40'
+      - series: 'comparison_duration_seconds_bucket{le="1.75"}'
+        values: '0x40'
+      - series: 'comparison_duration_seconds_bucket{le="2"}'
+        values: '0x40'
+      - series: 'comparison_duration_seconds_bucket{le="2.15"}'
+        values: '0x40'
+      - series: 'comparison_duration_seconds_bucket{le="2.3"}'
+        values: '0x40'
+      - series: 'comparison_duration_seconds_bucket{le="2.5"}'
+        values: '0+10x40'
+      - series: 'comparison_duration_seconds_bucket{le="3"}'
+        values: '0+10x40'
+      - series: 'comparison_duration_seconds_bucket{le="5"}'
+        values: '0+10x40'
+      - series: 'comparison_duration_seconds_bucket{le="+Inf"}'
+        values: '0+10x40'
+    alert_rule_test:
+      - eval_time: 30m
+        alertname: ComparisonLatencyHigh
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+            exp_annotations:
+              summary: "El p95 de POST /comparison supera 2,3 s (línea base ≈ 2,0 s)"
+              action: "Comparar con comparison_overhead_seconds: si sube, el retraso es propio; si no, mirar la latencia por provider."
+
+  # TC-O4 — ComparisonLatencyHigh no dispara con la línea base (p95 ≈ 2,0 s)
+  - interval: 1m
+    input_series:
+      - series: 'comparison_requests_total{outcome="complete"}'
+        values: '0+10x40'
+      - series: 'comparison_duration_seconds_bucket{le="0.5"}'
+        values: '0x40'
+      - series: 'comparison_duration_seconds_bucket{le="1"}'
+        values: '0x40'
+      - series: 'comparison_duration_seconds_bucket{le="1.25"}'
+        values: '0x40'
+      - series: 'comparison_duration_seconds_bucket{le="1.5"}'
+        values: '0x40'
+      - series: 'comparison_duration_seconds_bucket{le="1.75"}'
+        values: '0x40'
+      - series: 'comparison_duration_seconds_bucket{le="2"}'
+        values: '0+10x40'
+      - series: 'comparison_duration_seconds_bucket{le="2.15"}'
+        values: '0+10x40'
+      - series: 'comparison_duration_seconds_bucket{le="2.3"}'
+        values: '0+10x40'
+      - series: 'comparison_duration_seconds_bucket{le="2.5"}'
+        values: '0+10x40'
+      - series: 'comparison_duration_seconds_bucket{le="3"}'
+        values: '0+10x40'
+      - series: 'comparison_duration_seconds_bucket{le="5"}'
+        values: '0+10x40'
+      - series: 'comparison_duration_seconds_bucket{le="+Inf"}'
+        values: '0+10x40'
+    alert_rule_test:
+      - eval_time: 30m
+        alertname: ComparisonLatencyHigh
+        exp_alerts: []
+
+  # TC-O4 — ComparisonLatencyHigh guarda de tráfico mínimo
+  - interval: 1m
+    input_series:
+      - series: 'comparison_requests_total{outcome="complete"}'
+        values: '0 0 0 1 1 1 2 2 2 3 3 3 4 4 4 5 5 5 6 6 6 7 7 7 8 8 8 9 9 9 10 10 10 11 11 11 12 12 12 13 13'
+      - series: 'comparison_duration_seconds_bucket{le="0.5"}'
+        values: '0x40'
+      - series: 'comparison_duration_seconds_bucket{le="1"}'
+        values: '0x40'
+      - series: 'comparison_duration_seconds_bucket{le="1.25"}'
+        values: '0x40'
+      - series: 'comparison_duration_seconds_bucket{le="1.5"}'
+        values: '0x40'
+      - series: 'comparison_duration_seconds_bucket{le="1.75"}'
+        values: '0x40'
+      - series: 'comparison_duration_seconds_bucket{le="2"}'
+        values: '0x40'
+      - series: 'comparison_duration_seconds_bucket{le="2.15"}'
+        values: '0x40'
+      - series: 'comparison_duration_seconds_bucket{le="2.3"}'
+        values: '0x40'
+      - series: 'comparison_duration_seconds_bucket{le="2.5"}'
+        values: '0+1x40'
+      - series: 'comparison_duration_seconds_bucket{le="3"}'
+        values: '0+1x40'
+      - series: 'comparison_duration_seconds_bucket{le="5"}'
+        values: '0+1x40'
+      - series: 'comparison_duration_seconds_bucket{le="+Inf"}'
+        values: '0+1x40'
+    alert_rule_test:
+      - eval_time: 30m
+        alertname: ComparisonLatencyHigh
+        exp_alerts: []
+
+  # TC-O4 — ComparisonOverheadHigh dispara con un p95 por encima de 250 ms
+  - interval: 1m
+    input_series:
+      - series: 'comparison_requests_total{outcome="complete"}'
+        values: '0+10x40'
+      - series: 'comparison_overhead_seconds_bucket{le="0.01"}'
+        values: '0x40'
+      - series: 'comparison_overhead_seconds_bucket{le="0.025"}'
+        values: '0x40'
+      - series: 'comparison_overhead_seconds_bucket{le="0.05"}'
+        values: '0x40'
+      - series: 'comparison_overhead_seconds_bucket{le="0.1"}'
+        values: '0x40'
+      - series: 'comparison_overhead_seconds_bucket{le="0.15"}'
+        values: '0x40'
+      - series: 'comparison_overhead_seconds_bucket{le="0.25"}'
+        values: '0x40'
+      - series: 'comparison_overhead_seconds_bucket{le="0.5"}'
+        values: '0+10x40'
+      - series: 'comparison_overhead_seconds_bucket{le="1"}'
+        values: '0+10x40'
+      - series: 'comparison_overhead_seconds_bucket{le="+Inf"}'
+        values: '0+10x40'
+    alert_rule_test:
+      - eval_time: 30m
+        alertname: ComparisonOverheadHigh
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+            exp_annotations:
+              summary: "El tiempo propio de una comparación (fuera de los providers) supera 250 ms en p95"
+              action: "Revisar despliegues recientes y CPU del contenedor. Si además sube la latencia de provider-a (línea base 80-200 ms), sospechar de saturación del pool PHP-FPM (architecture.md §3)."
+
+  # TC-O4 — ComparisonOverheadHigh no dispara con un overhead normal
+  - interval: 1m
+    input_series:
+      - series: 'comparison_requests_total{outcome="complete"}'
+        values: '0+10x40'
+      - series: 'comparison_overhead_seconds_bucket{le="0.01"}'
+        values: '0x40'
+      - series: 'comparison_overhead_seconds_bucket{le="0.025"}'
+        values: '0x40'
+      - series: 'comparison_overhead_seconds_bucket{le="0.05"}'
+        values: '0+10x40'
+      - series: 'comparison_overhead_seconds_bucket{le="0.1"}'
+        values: '0+10x40'
+      - series: 'comparison_overhead_seconds_bucket{le="0.15"}'
+        values: '0+10x40'
+      - series: 'comparison_overhead_seconds_bucket{le="0.25"}'
+        values: '0+10x40'
+      - series: 'comparison_overhead_seconds_bucket{le="0.5"}'
+        values: '0+10x40'
+      - series: 'comparison_overhead_seconds_bucket{le="1"}'
+        values: '0+10x40'
+      - series: 'comparison_overhead_seconds_bucket{le="+Inf"}'
+        values: '0+10x40'
+    alert_rule_test:
+      - eval_time: 30m
+        alertname: ComparisonOverheadHigh
+        exp_alerts: []
+
+  # TC-O4 — ComparisonOverheadHigh guarda de tráfico mínimo
+  - interval: 1m
+    input_series:
+      - series: 'comparison_requests_total{outcome="complete"}'
+        values: '0 0 0 1 1 1 2 2 2 3 3 3 4 4 4 5 5 5 6 6 6 7 7 7 8 8 8 9 9 9 10 10 10 11 11 11 12 12 12 13 13'
+      - series: 'comparison_overhead_seconds_bucket{le="0.01"}'
+        values: '0x40'
+      - series: 'comparison_overhead_seconds_bucket{le="0.025"}'
+        values: '0x40'
+      - series: 'comparison_overhead_seconds_bucket{le="0.05"}'
+        values: '0x40'
+      - series: 'comparison_overhead_seconds_bucket{le="0.1"}'
+        values: '0x40'
+      - series: 'comparison_overhead_seconds_bucket{le="0.15"}'
+        values: '0x40'
+      - series: 'comparison_overhead_seconds_bucket{le="0.25"}'
+        values: '0x40'
+      - series: 'comparison_overhead_seconds_bucket{le="0.5"}'
+        values: '0+1x40'
+      - series: 'comparison_overhead_seconds_bucket{le="1"}'
+        values: '0+1x40'
+      - series: 'comparison_overhead_seconds_bucket{le="+Inf"}'
+        values: '0+1x40'
+    alert_rule_test:
+      - eval_time: 30m
+        alertname: ComparisonOverheadHigh
+        exp_alerts: []
+
+  # TC-O4 — ProviderFailureRateHigh: un 15 % de fallos en provider-a SÍ dispara (su línea base es 0 %)
+  - interval: 1m
+    input_series:
+      - series: 'provider_calls_total{provider="provider-a",outcome="ok"}'
+        values: '0+85x40'
+      - series: 'provider_calls_total{provider="provider-a",outcome="timeout"}'
+        values: '0+15x40'
+    alert_rule_test:
+      - eval_time: 30m
+        alertname: ProviderFailureRateHigh
+        exp_alerts:
+          - exp_labels:
+              provider: provider-a
+              severity: warning
+            exp_annotations:
+              summary: "El provider provider-a falla en más del 5 % de las llamadas"
+              action: "Ver el motivo en el dashboard (timeout frente a http_error o malformed_response) y en provider.call.failed."
+
+  # TC-O4 — ProviderFailureRateHigh: un 15 % de fallos en provider-c NO dispara (es su línea base)
+  - interval: 1m
+    input_series:
+      - series: 'provider_calls_total{provider="provider-c",outcome="ok"}'
+        values: '0+85x40'
+      - series: 'provider_calls_total{provider="provider-c",outcome="timeout"}'
+        values: '0+15x40'
+    alert_rule_test:
+      - eval_time: 30m
+        alertname: ProviderFailureRateHigh
+        exp_alerts: []
+
+  # TC-O4 — ProviderFailureRateHigh: un 40 % de fallos en provider-c dispara
+  - interval: 1m
+    input_series:
+      - series: 'provider_calls_total{provider="provider-c",outcome="ok"}'
+        values: '0+60x40'
+      - series: 'provider_calls_total{provider="provider-c",outcome="http_error"}'
+        values: '0+40x40'
+    alert_rule_test:
+      - eval_time: 30m
+        alertname: ProviderFailureRateHigh
+        exp_alerts:
+          - exp_labels:
+              provider: provider-c
+              severity: warning
+            exp_annotations:
+              summary: "El provider provider-c falla en más del 30 % de las llamadas (línea base 15 %)"
+              action: "Ver el motivo en el dashboard (timeout frente a http_error o malformed_response) y en provider.call.failed."
+
+  # TC-O4 — ProviderFailureRateHigh: un provider nuevo queda cubierto por el umbral por defecto
+  - interval: 1m
+    input_series:
+      - series: 'provider_calls_total{provider="provider-d",outcome="ok"}'
+        values: '0+90x40'
+      - series: 'provider_calls_total{provider="provider-d",outcome="malformed_response"}'
+        values: '0+10x40'
+    alert_rule_test:
+      - eval_time: 30m
+        alertname: ProviderFailureRateHigh
+        exp_alerts:
+          - exp_labels:
+              provider: provider-d
+              severity: warning
+            exp_annotations:
+              summary: "El provider provider-d falla en más del 5 % de las llamadas"
+              action: "Ver el motivo en el dashboard (timeout frente a http_error o malformed_response) y en provider.call.failed."
+
+  # TC-O4 — ProviderFailureRateHigh no dispara con provider-b sano
+  - interval: 1m
+    input_series:
+      - series: 'provider_calls_total{provider="provider-b",outcome="ok"}'
+        values: '0+100x40'
+    alert_rule_test:
+      - eval_time: 30m
+        alertname: ProviderFailureRateHigh
+        exp_alerts: []
+
+  # TC-O4 — ProviderFailureRateHigh guarda de tráfico mínimo
+  - interval: 1m
+    input_series:
+      - series: 'provider_calls_total{provider="provider-a",outcome="timeout"}'
+        values: '0 0 0 0 0 1 1 1 1 1 2 2 2 2 2 3 3 3 3 3 4 4 4 4 4 5 5 5 5 5 6 6 6 6 6 7 7 7 7 7 8'
+    alert_rule_test:
+      - eval_time: 30m
+        alertname: ProviderFailureRateHigh
+        exp_alerts: []
+
+  # TC-O4 — ProviderLatencyDegraded dispara para provider-a por encima de su contrato
+  - interval: 1m
+    input_series:
+      - series: 'provider_calls_total{provider="provider-a",outcome="ok"}'
+        values: '0+10x40'
+      - series: 'provider_call_duration_seconds_bucket{provider="provider-a",result="ok",le="0.1"}'
+        values: '0x40'
+      - series: 'provider_call_duration_seconds_bucket{provider="provider-a",result="ok",le="0.2"}'
+        values: '0x40'
+      - series: 'provider_call_duration_seconds_bucket{provider="provider-a",result="ok",le="0.3"}'
+        values: '0x40'
+      - series: 'provider_call_duration_seconds_bucket{provider="provider-a",result="ok",le="0.4"}'
+        values: '0+10x40'
+      - series: 'provider_call_duration_seconds_bucket{provider="provider-a",result="ok",le="0.5"}'
+        values: '0+10x40'
+      - series: 'provider_call_duration_seconds_bucket{provider="provider-a",result="ok",le="1"}'
+        values: '0+10x40'
+      - series: 'provider_call_duration_seconds_bucket{provider="provider-a",result="ok",le="1.5"}'
+        values: '0+10x40'
+      - series: 'provider_call_duration_seconds_bucket{provider="provider-a",result="ok",le="1.8"}'
+        values: '0+10x40'
+      - series: 'provider_call_duration_seconds_bucket{provider="provider-a",result="ok",le="1.9"}'
+        values: '0+10x40'
+      - series: 'provider_call_duration_seconds_bucket{provider="provider-a",result="ok",le="2"}'
+        values: '0+10x40'
+      - series: 'provider_call_duration_seconds_bucket{provider="provider-a",result="ok",le="2.5"}'
+        values: '0+10x40'
+      - series: 'provider_call_duration_seconds_bucket{provider="provider-a",result="ok",le="+Inf"}'
+        values: '0+10x40'
+    alert_rule_test:
+      - eval_time: 30m
+        alertname: ProviderLatencyDegraded
+        exp_alerts:
+          - exp_labels:
+              provider: provider-a
+              severity: warning
+            exp_annotations:
+              summary: "provider-a responde más lento que su contrato (p95 > 0,3 s; contrato 80-200 ms)"
+              action: "Si solo es provider-a, sospechar de saturación del pool PHP-FPM (architecture.md §3); si son todos, del entorno."
+
+  # TC-O4 — ProviderLatencyDegraded no dispara para provider-a dentro de su contrato
+  - interval: 1m
+    input_series:
+      - series: 'provider_calls_total{provider="provider-a",outcome="ok"}'
+        values: '0+10x40'
+      - series: 'provider_call_duration_seconds_bucket{provider="provider-a",result="ok",le="0.1"}'
+        values: '0x40'
+      - series: 'provider_call_duration_seconds_bucket{provider="provider-a",result="ok",le="0.2"}'
+        values: '0+10x40'
+      - series: 'provider_call_duration_seconds_bucket{provider="provider-a",result="ok",le="0.3"}'
+        values: '0+10x40'
+      - series: 'provider_call_duration_seconds_bucket{provider="provider-a",result="ok",le="0.4"}'
+        values: '0+10x40'
+      - series: 'provider_call_duration_seconds_bucket{provider="provider-a",result="ok",le="0.5"}'
+        values: '0+10x40'
+      - series: 'provider_call_duration_seconds_bucket{provider="provider-a",result="ok",le="1"}'
+        values: '0+10x40'
+      - series: 'provider_call_duration_seconds_bucket{provider="provider-a",result="ok",le="1.5"}'
+        values: '0+10x40'
+      - series: 'provider_call_duration_seconds_bucket{provider="provider-a",result="ok",le="1.8"}'
+        values: '0+10x40'
+      - series: 'provider_call_duration_seconds_bucket{provider="provider-a",result="ok",le="1.9"}'
+        values: '0+10x40'
+      - series: 'provider_call_duration_seconds_bucket{provider="provider-a",result="ok",le="2"}'
+        values: '0+10x40'
+      - series: 'provider_call_duration_seconds_bucket{provider="provider-a",result="ok",le="2.5"}'
+        values: '0+10x40'
+      - series: 'provider_call_duration_seconds_bucket{provider="provider-a",result="ok",le="+Inf"}'
+        values: '0+10x40'
+    alert_rule_test:
+      - eval_time: 30m
+        alertname: ProviderLatencyDegraded
+        exp_alerts: []
+
+  # TC-O4 — ProviderLatencyDegraded dispara para provider-b por encima de su contrato
+  - interval: 1m
+    input_series:
+      - series: 'provider_calls_total{provider="provider-b",outcome="ok"}'
+        values: '0+10x40'
+      - series: 'provider_call_duration_seconds_bucket{provider="provider-b",result="ok",le="0.1"}'
+        values: '0x40'
+      - series: 'provider_call_duration_seconds_bucket{provider="provider-b",result="ok",le="0.2"}'
+        values: '0x40'
+      - series: 'provider_call_duration_seconds_bucket{provider="provider-b",result="ok",le="0.3"}'
+        values: '0x40'
+      - series: 'provider_call_duration_seconds_bucket{provider="provider-b",result="ok",le="0.4"}'
+        values: '0x40'
+      - series: 'provider_call_duration_seconds_bucket{provider="provider-b",result="ok",le="0.5"}'
+        values: '0x40'
+      - series: 'provider_call_duration_seconds_bucket{provider="provider-b",result="ok",le="1"}'
+        values: '0x40'
+      - series: 'provider_call_duration_seconds_bucket{provider="provider-b",result="ok",le="1.5"}'
+        values: '0x40'
+      - series: 'provider_call_duration_seconds_bucket{provider="provider-b",result="ok",le="1.8"}'
+        values: '0x40'
+      - series: 'provider_call_duration_seconds_bucket{provider="provider-b",result="ok",le="1.9"}'
+        values: '0x40'
+      - series: 'provider_call_duration_seconds_bucket{provider="provider-b",result="ok",le="2"}'
+        values: '0+10x40'
+      - series: 'provider_call_duration_seconds_bucket{provider="provider-b",result="ok",le="2.5"}'
+        values: '0+10x40'
+      - series: 'provider_call_duration_seconds_bucket{provider="provider-b",result="ok",le="+Inf"}'
+        values: '0+10x40'
+    alert_rule_test:
+      - eval_time: 30m
+        alertname: ProviderLatencyDegraded
+        exp_alerts:
+          - exp_labels:
+              provider: provider-b
+              severity: warning
+            exp_annotations:
+              summary: "provider-b se acerca al timeout (p95 > 1,9 s; contrato 1,2-1,8 s)"
+              action: "Sus ofertas están a punto de perderse por timeout: valorar con el partner o revisar el timeout único (decisions.md)."
+
+  # TC-O4 — ProviderLatencyDegraded no dispara para provider-b dentro de su contrato
+  - interval: 1m
+    input_series:
+      - series: 'provider_calls_total{provider="provider-b",outcome="ok"}'
+        values: '0+10x40'
+      - series: 'provider_call_duration_seconds_bucket{provider="provider-b",result="ok",le="0.1"}'
+        values: '0x40'
+      - series: 'provider_call_duration_seconds_bucket{provider="provider-b",result="ok",le="0.2"}'
+        values: '0x40'
+      - series: 'provider_call_duration_seconds_bucket{provider="provider-b",result="ok",le="0.3"}'
+        values: '0x40'
+      - series: 'provider_call_duration_seconds_bucket{provider="provider-b",result="ok",le="0.4"}'
+        values: '0x40'
+      - series: 'provider_call_duration_seconds_bucket{provider="provider-b",result="ok",le="0.5"}'
+        values: '0x40'
+      - series: 'provider_call_duration_seconds_bucket{provider="provider-b",result="ok",le="1"}'
+        values: '0x40'
+      - series: 'provider_call_duration_seconds_bucket{provider="provider-b",result="ok",le="1.5"}'
+        values: '0x40'
+      - series: 'provider_call_duration_seconds_bucket{provider="provider-b",result="ok",le="1.8"}'
+        values: '0+10x40'
+      - series: 'provider_call_duration_seconds_bucket{provider="provider-b",result="ok",le="1.9"}'
+        values: '0+10x40'
+      - series: 'provider_call_duration_seconds_bucket{provider="provider-b",result="ok",le="2"}'
+        values: '0+10x40'
+      - series: 'provider_call_duration_seconds_bucket{provider="provider-b",result="ok",le="2.5"}'
+        values: '0+10x40'
+      - series: 'provider_call_duration_seconds_bucket{provider="provider-b",result="ok",le="+Inf"}'
+        values: '0+10x40'
+    alert_rule_test:
+      - eval_time: 30m
+        alertname: ProviderLatencyDegraded
+        exp_alerts: []
+
+  # TC-O4 — ProviderLatencyDegraded dispara para provider-c por encima de su contrato
+  - interval: 1m
+    input_series:
+      - series: 'provider_calls_total{provider="provider-c",outcome="ok"}'
+        values: '0+10x40'
+      - series: 'provider_call_duration_seconds_bucket{provider="provider-c",result="ok",le="0.1"}'
+        values: '0x40'
+      - series: 'provider_call_duration_seconds_bucket{provider="provider-c",result="ok",le="0.2"}'
+        values: '0x40'
+      - series: 'provider_call_duration_seconds_bucket{provider="provider-c",result="ok",le="0.3"}'
+        values: '0x40'
+      - series: 'provider_call_duration_seconds_bucket{provider="provider-c",result="ok",le="0.4"}'
+        values: '0x40'
+      - series: 'provider_call_duration_seconds_bucket{provider="provider-c",result="ok",le="0.5"}'
+        values: '0x40'
+      - series: 'provider_call_duration_seconds_bucket{provider="provider-c",result="ok",le="1"}'
+        values: '0+10x40'
+      - series: 'provider_call_duration_seconds_bucket{provider="provider-c",result="ok",le="1.5"}'
+        values: '0+10x40'
+      - series: 'provider_call_duration_seconds_bucket{provider="provider-c",result="ok",le="1.8"}'
+        values: '0+10x40'
+      - series: 'provider_call_duration_seconds_bucket{provider="provider-c",result="ok",le="1.9"}'
+        values: '0+10x40'
+      - series: 'provider_call_duration_seconds_bucket{provider="provider-c",result="ok",le="2"}'
+        values: '0+10x40'
+      - series: 'provider_call_duration_seconds_bucket{provider="provider-c",result="ok",le="2.5"}'
+        values: '0+10x40'
+      - series: 'provider_call_duration_seconds_bucket{provider="provider-c",result="ok",le="+Inf"}'
+        values: '0+10x40'
+    alert_rule_test:
+      - eval_time: 30m
+        alertname: ProviderLatencyDegraded
+        exp_alerts:
+          - exp_labels:
+              provider: provider-c
+              severity: warning
+            exp_annotations:
+              summary: "provider-c responde más lento que su contrato (p95 > 0,5 s; contrato normal 150-400 ms)"
+              action: "Comparar con su tasa de fallos: un partner que se degrada suele fallar antes de tardar más."
+
+  # TC-O4 — ProviderLatencyDegraded no dispara para provider-c dentro de su contrato
+  - interval: 1m
+    input_series:
+      - series: 'provider_calls_total{provider="provider-c",outcome="ok"}'
+        values: '0+10x40'
+      - series: 'provider_call_duration_seconds_bucket{provider="provider-c",result="ok",le="0.1"}'
+        values: '0x40'
+      - series: 'provider_call_duration_seconds_bucket{provider="provider-c",result="ok",le="0.2"}'
+        values: '0x40'
+      - series: 'provider_call_duration_seconds_bucket{provider="provider-c",result="ok",le="0.3"}'
+        values: '0x40'
+      - series: 'provider_call_duration_seconds_bucket{provider="provider-c",result="ok",le="0.4"}'
+        values: '0+10x40'
+      - series: 'provider_call_duration_seconds_bucket{provider="provider-c",result="ok",le="0.5"}'
+        values: '0+10x40'
+      - series: 'provider_call_duration_seconds_bucket{provider="provider-c",result="ok",le="1"}'
+        values: '0+10x40'
+      - series: 'provider_call_duration_seconds_bucket{provider="provider-c",result="ok",le="1.5"}'
+        values: '0+10x40'
+      - series: 'provider_call_duration_seconds_bucket{provider="provider-c",result="ok",le="1.8"}'
+        values: '0+10x40'
+      - series: 'provider_call_duration_seconds_bucket{provider="provider-c",result="ok",le="1.9"}'
+        values: '0+10x40'
+      - series: 'provider_call_duration_seconds_bucket{provider="provider-c",result="ok",le="2"}'
+        values: '0+10x40'
+      - series: 'provider_call_duration_seconds_bucket{provider="provider-c",result="ok",le="2.5"}'
+        values: '0+10x40'
+      - series: 'provider_call_duration_seconds_bucket{provider="provider-c",result="ok",le="+Inf"}'
+        values: '0+10x40'
+    alert_rule_test:
+      - eval_time: 30m
+        alertname: ProviderLatencyDegraded
+        exp_alerts: []
+
+  # TC-O4 — ProviderLatencyDegraded dispara para provider-d por encima de su contrato
+  - interval: 1m
+    input_series:
+      - series: 'provider_calls_total{provider="provider-d",outcome="ok"}'
+        values: '0+10x40'
+      - series: 'provider_call_duration_seconds_bucket{provider="provider-d",result="ok",le="0.1"}'
+        values: '0x40'
+      - series: 'provider_call_duration_seconds_bucket{provider="provider-d",result="ok",le="0.2"}'
+        values: '0x40'
+      - series: 'provider_call_duration_seconds_bucket{provider="provider-d",result="ok",le="0.3"}'
+        values: '0x40'
+      - series: 'provider_call_duration_seconds_bucket{provider="provider-d",result="ok",le="0.4"}'
+        values: '0x40'
+      - series: 'provider_call_duration_seconds_bucket{provider="provider-d",result="ok",le="0.5"}'
+        values: '0x40'
+      - series: 'provider_call_duration_seconds_bucket{provider="provider-d",result="ok",le="1"}'
+        values: '0x40'
+      - series: 'provider_call_duration_seconds_bucket{provider="provider-d",result="ok",le="1.5"}'
+        values: '0x40'
+      - series: 'provider_call_duration_seconds_bucket{provider="provider-d",result="ok",le="1.8"}'
+        values: '0x40'
+      - series: 'provider_call_duration_seconds_bucket{provider="provider-d",result="ok",le="1.9"}'
+        values: '0x40'
+      - series: 'provider_call_duration_seconds_bucket{provider="provider-d",result="ok",le="2"}'
+        values: '0+10x40'
+      - series: 'provider_call_duration_seconds_bucket{provider="provider-d",result="ok",le="2.5"}'
+        values: '0+10x40'
+      - series: 'provider_call_duration_seconds_bucket{provider="provider-d",result="ok",le="+Inf"}'
+        values: '0+10x40'
+    alert_rule_test:
+      - eval_time: 30m
+        alertname: ProviderLatencyDegraded
+        exp_alerts:
+          - exp_labels:
+              provider: provider-d
+              severity: warning
+            exp_annotations:
+              summary: "El provider provider-d se acerca al timeout (p95 > 1,9 s)"
+              action: "Añadir una regla con su umbral propio si su latencia normal es distinta."
+
+  # TC-O4 — ProviderLatencyDegraded no dispara para provider-d dentro de su contrato
+  - interval: 1m
+    input_series:
+      - series: 'provider_calls_total{provider="provider-d",outcome="ok"}'
+        values: '0+10x40'
+      - series: 'provider_call_duration_seconds_bucket{provider="provider-d",result="ok",le="0.1"}'
+        values: '0x40'
+      - series: 'provider_call_duration_seconds_bucket{provider="provider-d",result="ok",le="0.2"}'
+        values: '0x40'
+      - series: 'provider_call_duration_seconds_bucket{provider="provider-d",result="ok",le="0.3"}'
+        values: '0x40'
+      - series: 'provider_call_duration_seconds_bucket{provider="provider-d",result="ok",le="0.4"}'
+        values: '0x40'
+      - series: 'provider_call_duration_seconds_bucket{provider="provider-d",result="ok",le="0.5"}'
+        values: '0+10x40'
+      - series: 'provider_call_duration_seconds_bucket{provider="provider-d",result="ok",le="1"}'
+        values: '0+10x40'
+      - series: 'provider_call_duration_seconds_bucket{provider="provider-d",result="ok",le="1.5"}'
+        values: '0+10x40'
+      - series: 'provider_call_duration_seconds_bucket{provider="provider-d",result="ok",le="1.8"}'
+        values: '0+10x40'
+      - series: 'provider_call_duration_seconds_bucket{provider="provider-d",result="ok",le="1.9"}'
+        values: '0+10x40'
+      - series: 'provider_call_duration_seconds_bucket{provider="provider-d",result="ok",le="2"}'
+        values: '0+10x40'
+      - series: 'provider_call_duration_seconds_bucket{provider="provider-d",result="ok",le="2.5"}'
+        values: '0+10x40'
+      - series: 'provider_call_duration_seconds_bucket{provider="provider-d",result="ok",le="+Inf"}'
+        values: '0+10x40'
+    alert_rule_test:
+      - eval_time: 30m
+        alertname: ProviderLatencyDegraded
+        exp_alerts: []
+
+  # TC-O4 — ProviderLatencyDegraded: la latencia normal de provider-b no dispara la regla de otro provider
+  - interval: 1m
+    input_series:
+      - series: 'provider_calls_total{provider="provider-b",outcome="ok"}'
+        values: '0+10x40'
+      - series: 'provider_call_duration_seconds_bucket{provider="provider-b",result="ok",le="0.1"}'
+        values: '0x40'
+      - series: 'provider_call_duration_seconds_bucket{provider="provider-b",result="ok",le="0.2"}'
+        values: '0x40'
+      - series: 'provider_call_duration_seconds_bucket{provider="provider-b",result="ok",le="0.3"}'
+        values: '0x40'
+      - series: 'provider_call_duration_seconds_bucket{provider="provider-b",result="ok",le="0.4"}'
+        values: '0x40'
+      - series: 'provider_call_duration_seconds_bucket{provider="provider-b",result="ok",le="0.5"}'
+        values: '0x40'
+      - series: 'provider_call_duration_seconds_bucket{provider="provider-b",result="ok",le="1"}'
+        values: '0x40'
+      - series: 'provider_call_duration_seconds_bucket{provider="provider-b",result="ok",le="1.5"}'
+        values: '0+10x40'
+      - series: 'provider_call_duration_seconds_bucket{provider="provider-b",result="ok",le="1.8"}'
+        values: '0+10x40'
+      - series: 'provider_call_duration_seconds_bucket{provider="provider-b",result="ok",le="1.9"}'
+        values: '0+10x40'
+      - series: 'provider_call_duration_seconds_bucket{provider="provider-b",result="ok",le="2"}'
+        values: '0+10x40'
+      - series: 'provider_call_duration_seconds_bucket{provider="provider-b",result="ok",le="2.5"}'
+        values: '0+10x40'
+      - series: 'provider_call_duration_seconds_bucket{provider="provider-b",result="ok",le="+Inf"}'
+        values: '0+10x40'
+    alert_rule_test:
+      - eval_time: 30m
+        alertname: ProviderLatencyDegraded
+        exp_alerts: []
+
+  # TC-O4 — ProviderLatencyDegraded guarda de tráfico mínimo
+  - interval: 1m
+    input_series:
+      - series: 'provider_calls_total{provider="provider-a",outcome="ok"}'
+        values: '0 0 0 0 0 1 1 1 1 1 2 2 2 2 2 3 3 3 3 3 4 4 4 4 4 5 5 5 5 5 6 6 6 6 6 7 7 7 7 7 8'
+      - series: 'provider_call_duration_seconds_bucket{provider="provider-a",result="ok",le="0.1"}'
+        values: '0x40'
+      - series: 'provider_call_duration_seconds_bucket{provider="provider-a",result="ok",le="0.2"}'
+        values: '0x40'
+      - series: 'provider_call_duration_seconds_bucket{provider="provider-a",result="ok",le="0.3"}'
+        values: '0x40'
+      - series: 'provider_call_duration_seconds_bucket{provider="provider-a",result="ok",le="0.4"}'
+        values: '0+1x40'
+      - series: 'provider_call_duration_seconds_bucket{provider="provider-a",result="ok",le="0.5"}'
+        values: '0+1x40'
+      - series: 'provider_call_duration_seconds_bucket{provider="provider-a",result="ok",le="1"}'
+        values: '0+1x40'
+      - series: 'provider_call_duration_seconds_bucket{provider="provider-a",result="ok",le="1.5"}'
+        values: '0+1x40'
+      - series: 'provider_call_duration_seconds_bucket{provider="provider-a",result="ok",le="1.8"}'
+        values: '0+1x40'
+      - series: 'provider_call_duration_seconds_bucket{provider="provider-a",result="ok",le="1.9"}'
+        values: '0+1x40'
+      - series: 'provider_call_duration_seconds_bucket{provider="provider-a",result="ok",le="2"}'
+        values: '0+1x40'
+      - series: 'provider_call_duration_seconds_bucket{provider="provider-a",result="ok",le="2.5"}'
+        values: '0+1x40'
+      - series: 'provider_call_duration_seconds_bucket{provider="provider-a",result="ok",le="+Inf"}'
+        values: '0+1x40'
+    alert_rule_test:
+      - eval_time: 30m
+        alertname: ProviderLatencyDegraded
+        exp_alerts: []

@@ -1,0 +1,155 @@
+# Reglas de alerta del comparador (observability.md §6).
+# Cada alerta avisa de un síntoma; la causa se diagnostica en el dashboard (§5).
+# Guarda de tráfico mínimo: las alertas de ratio y de percentil solo se evalúan si hay
+# volumen suficiente en la ventana, para que con poco tráfico una petición suelta no dispare un 100 %.
+groups:
+  - name: comparator
+    rules:
+      - alert: BackendDown
+        expr: up{job="backend"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "El backend no responde al scrape de /metrics"
+          action: "Revisar que el contenedor backend esté arrancado y sus logs de arranque."
+
+      - alert: ComparisonErrors
+        expr: |
+          (
+            sum(increase(comparison_requests_total{outcome="error"}[5m]))
+            /
+            sum(increase(comparison_requests_total{outcome!="invalid"}[5m]))
+          ) > 0.01
+          and on()
+          sum(increase(comparison_requests_total{outcome!="invalid"}[5m])) >= 5
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Más del 1 % de las comparaciones acaban en 500"
+          action: "Es un fallo propio, nunca de un provider: buscar comparison.failed en los logs (exception_class y traza)."
+
+      - alert: ComparisonEmptyResults
+        expr: |
+          (
+            sum(increase(comparison_requests_total{outcome="empty"}[5m]))
+            /
+            sum(increase(comparison_requests_total{outcome!="invalid"}[5m]))
+          ) > 0.05
+          and on()
+          sum(increase(comparison_requests_total{outcome!="invalid"}[5m])) >= 5
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Más del 5 % de las comparaciones no devuelve ninguna oferta"
+          action: "Los tres providers fallan a la vez (línea base 0 %): mirar provider.call.failed y sospechar de red o del cliente HTTP propio."
+
+      - alert: ComparisonLatencyHigh
+        expr: |
+          histogram_quantile(0.95, sum by (le) (rate(comparison_duration_seconds_bucket[5m]))) > 2.3
+          and on()
+          sum(increase(comparison_requests_total{outcome!="invalid"}[5m])) >= 5
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "El p95 de POST /comparison supera 2,3 s (línea base ≈ 2,0 s)"
+          action: "Comparar con comparison_overhead_seconds: si sube, el retraso es propio; si no, mirar la latencia por provider."
+
+      - alert: ComparisonOverheadHigh
+        expr: |
+          histogram_quantile(0.95, sum by (le) (rate(comparison_overhead_seconds_bucket[5m]))) > 0.25
+          and on()
+          sum(increase(comparison_requests_total{outcome!="invalid"}[5m])) >= 5
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "El tiempo propio de una comparación (fuera de los providers) supera 250 ms en p95"
+          action: "Revisar despliegues recientes y CPU del contenedor. Si además sube la latencia de provider-a (línea base 80-200 ms), sospechar de saturación del pool PHP-FPM (architecture.md §3)."
+
+      # Umbral por defecto para cualquier provider salvo los que tienen una excepción explícita.
+      - alert: ProviderFailureRateHigh
+        expr: |
+          (
+            sum by (provider) (increase(provider_calls_total{provider!="provider-c", outcome!="ok"}[10m]))
+            /
+            sum by (provider) (increase(provider_calls_total{provider!="provider-c"}[10m]))
+          ) > 0.05
+          and on(provider)
+          sum by (provider) (increase(provider_calls_total{provider!="provider-c"}[10m])) >= 10
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "El provider {{ $labels.provider }} falla en más del 5 % de las llamadas"
+          action: "Ver el motivo en el dashboard (timeout frente a http_error o malformed_response) y en provider.call.failed."
+
+      # Excepción: provider-c falla por diseño ≈ 15 % (providers.md §3.3); se alerta al doble de su línea base.
+      - alert: ProviderFailureRateHigh
+        expr: |
+          (
+            sum by (provider) (increase(provider_calls_total{provider="provider-c", outcome!="ok"}[10m]))
+            /
+            sum by (provider) (increase(provider_calls_total{provider="provider-c"}[10m]))
+          ) > 0.30
+          and on(provider)
+          sum by (provider) (increase(provider_calls_total{provider="provider-c"}[10m])) >= 10
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "El provider {{ $labels.provider }} falla en más del 30 % de las llamadas (línea base 15 %)"
+          action: "Ver el motivo en el dashboard (timeout frente a http_error o malformed_response) y en provider.call.failed."
+
+      # Latencia de las llamadas correctas: máximo documentado + margen, por provider (providers.md §3).
+      - alert: ProviderLatencyDegraded
+        expr: |
+          histogram_quantile(0.95, sum by (le, provider) (rate(provider_call_duration_seconds_bucket{provider="provider-a", result="ok"}[10m]))) > 0.3
+          and on(provider)
+          sum by (provider) (increase(provider_calls_total{provider="provider-a", outcome="ok"}[10m])) >= 10
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "provider-a responde más lento que su contrato (p95 > 0,3 s; contrato 80-200 ms)"
+          action: "Si solo es provider-a, sospechar de saturación del pool PHP-FPM (architecture.md §3); si son todos, del entorno."
+
+      - alert: ProviderLatencyDegraded
+        expr: |
+          histogram_quantile(0.95, sum by (le, provider) (rate(provider_call_duration_seconds_bucket{provider="provider-b", result="ok"}[10m]))) > 1.9
+          and on(provider)
+          sum by (provider) (increase(provider_calls_total{provider="provider-b", outcome="ok"}[10m])) >= 10
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "provider-b se acerca al timeout (p95 > 1,9 s; contrato 1,2-1,8 s)"
+          action: "Sus ofertas están a punto de perderse por timeout: valorar con el partner o revisar el timeout único (decisions.md)."
+
+      - alert: ProviderLatencyDegraded
+        expr: |
+          histogram_quantile(0.95, sum by (le, provider) (rate(provider_call_duration_seconds_bucket{provider="provider-c", result="ok"}[10m]))) > 0.5
+          and on(provider)
+          sum by (provider) (increase(provider_calls_total{provider="provider-c", outcome="ok"}[10m])) >= 10
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "provider-c responde más lento que su contrato (p95 > 0,5 s; contrato normal 150-400 ms)"
+          action: "Comparar con su tasa de fallos: un partner que se degrada suele fallar antes de tardar más."
+
+      # Umbral por defecto para providers nuevos: una llamada correcta nunca supera el timeout (2 s).
+      - alert: ProviderLatencyDegraded
+        expr: |
+          histogram_quantile(0.95, sum by (le, provider) (rate(provider_call_duration_seconds_bucket{provider!~"provider-a|provider-b|provider-c", result="ok"}[10m]))) > 1.9
+          and on(provider)
+          sum by (provider) (increase(provider_calls_total{provider!~"provider-a|provider-b|provider-c", outcome="ok"}[10m])) >= 10
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "El provider {{ $labels.provider }} se acerca al timeout (p95 > 1,9 s)"
+          action: "Añadir una regla con su umbral propio si su latencia normal es distinta."

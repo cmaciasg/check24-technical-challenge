@@ -1,0 +1,13 @@
+# Configuración mínima de Prometheus (observability.md §8).
+global:
+  scrape_interval: 15s       # cada cuánto pregunta a la app por /metrics
+  evaluation_interval: 15s   # cada cuánto evalúa las reglas de alerta
+
+rule_files:
+  - /etc/prometheus/alerts.yml
+
+scrape_configs:
+  - job_name: backend        # las reglas de alerta dependen de este nombre (up{job="backend"})
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["backend:80"]   # servicio del backend en docker-compose
