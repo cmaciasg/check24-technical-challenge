@@ -8,7 +8,8 @@ Vue (formulario; estado en composable/store — product.md §2)
         -> ComparisonController (UI/Http): construye el QuoteRequest y lo pasa al caso de uso
         -> CompareQuotes (Application/Compare): caso de uso que orquesta los pasos siguientes
              -> ComparisonService
-                  -> [ProviderAAdapter, ProviderBAdapter, ProviderCAdapter]  (llamadas concurrentes)
+                  -> start() en cada adapter [ProviderAAdapter, ProviderBAdapter, ProviderCAdapter]  (las tres consultas quedan en vuelo a la vez)
+                  -> collect() en cada PendingQuote, en el orden en que se lanzaron
                   -> un ProviderResult por adapter (éxito o fallo), devuelto tal cual
              -> CampaignPricingService (aplica CampaignDiscount si la campaña está activa — product.md §4, architecture.md §6)
              -> resultado: PricedOffer[] + ProviderResult[]
@@ -41,8 +42,8 @@ Los tres providers no son servicios externos reales, pero se simulan como si lo 
 
 Esta decisión (simulación vía HTTP real de loopback, en lugar de un fake in-process con `usleep`) se toma para que el timeout y la concurrencia sean reales, no simulados a su vez:
 
-- El timeout se aplica como opción del cliente HTTP (`timeout` en `HttpClientInterface::request()`), y lo hace cumplir el propio motor de transporte (curl), no un `if` de la aplicación comparando marcas de tiempo.
-- La concurrencia entre los tres adapters se consigue con el soporte asíncrono nativo de Symfony HttpClient: las tres peticiones se lanzan sin bloquear (`request()` sin resolver la respuesta) y se resuelven a medida que cada una completa o expira, en vez de esperarlas una a una.
+- El techo de tiempo se aplica como opción del cliente HTTP (`max_duration` en `HttpClientInterface::request()`, duración máxima total contada desde `start()`; la opción `timeout` es de inactividad y no sirve como techo), y lo hace cumplir el propio motor de transporte (curl), no un `if` de la aplicación comparando marcas de tiempo.
+- La concurrencia entre los tres adapters se consigue con el soporte asíncrono nativo de Symfony HttpClient y con el puerto de dos pasos (`providers.md` §1): cada adapter lanza su petición en `start()` sin resolver la respuesta, y `ComparisonService` las recoge después con `collect()`, en el orden en que se lanzaron, en vez de esperarlas una a una. Como el techo de cada petición corre desde `start()`, recoger en orden no alarga el tiempo total.
 - Un partner lento o caído se comporta exactamente igual, desde el punto de vista del adapter, tanto si es simulado como si fuera real: una excepción de timeout o de transporte que el adapter captura y normaliza a `ProviderResult::failure(...)` (contrato completo en `providers.md` §1–2).
 
 Nota operativa: para que las tres llamadas se solapen de verdad en tiempo real (y no queden serializadas por un único worker PHP ocupado), el entorno de ejecución (PHP-FPM u otro runtime) debe poder atender al menos tantas peticiones concurrentes como providers simulados activos más una: la propia petición de `POST /comparison` mantiene ocupado un worker mientras espera a los providers. Con los tres providers actuales, son al menos 4 workers simultáneos. Con menos, las llamadas a los providers simulados se encolan y la latencia medida de alguno de ellos incluye tiempo de espera que no es suyo; con un solo worker, la petición se bloquea a sí misma y las tres llamadas acaban en timeout. Esto se documenta como requisito de `docker-compose.yml`, no como parte del contrato de dominio.
@@ -227,7 +228,7 @@ ComparisonController: serialización a la respuesta JSON de §4.2
 
 `CampaignPricingService` lee la configuración de `product.md` §4.1 (`app.marketing.campaign.*`). Si `active = false`, no hace nada y ninguna oferta lleva `discountedPriceAmountCents`. Si `active = true`, construye un único `CampaignDiscount` (`product.md` §4.2) a partir de `discount_type`/`discount_value`, y lo aplica por igual a las tres ofertas presentes en la respuesta llamando a `Price::withDiscount()` sobre cada una — sin distinguir por `providerId` (`product.md` §4.3, TC-P7). Ni `ProviderPort` ni ningún adapter necesita cambiar para que esto funcione: el `ComparisonOffer[]` que reciben ya está completamente resuelto antes de que este servicio actúe.
 
-`CompareQuotes` extrae las ofertas de los `ProviderResult` que tuvieron éxito, se las pasa a `CampaignPricingService` y devuelve un `CompareQuotesResult` (en `Application/Compare`) con dos conjuntos: los `PricedOffer[]` (`offers[]` de §4.2) y los `ProviderResult[]` tal cual (`providerStatuses[]` de §4.2). El controlador serializa ambos al JSON de §4.2. `ComparisonService` no traduce nada a la forma de la respuesta: solo lanza las llamadas concurrentes y recoge los informes.
+`CompareQuotes` extrae las ofertas de los `ProviderResult` que tuvieron éxito, se las pasa a `CampaignPricingService` y devuelve un `CompareQuotesResult` (en `Application/Compare`) con dos conjuntos: los `PricedOffer[]` (`offers[]` de §4.2) y los `ProviderResult[]` tal cual (`providerStatuses[]` de §4.2). El controlador serializa ambos al JSON de §4.2. `ComparisonService` no traduce nada a la forma de la respuesta: solo lanza las consultas (`start()`) y recoge los informes (`collect()`).
 
 El caso de uso registra además las métricas y los logs de cada comparación a través del puerto `ComparisonMetrics` y del logger estándar (`observability.md` §3.4 y §4.3), sin que la lógica de comparación ni la de campaña dependan de ninguna librería de métricas.
 
@@ -255,7 +256,7 @@ backend/src/
   Comparator/                       # la plataforma: agrupa los bounded contexts; no es un bounded context
     CarInsurance/                   #   bounded context: comparador de seguros de coche
       Application/
-        Compare/                    #     CompareQuotes (caso de uso) y CompareQuotesResult, ComparisonService, ProviderPort (puerto de salida),
+        Compare/                    #     CompareQuotes (caso de uso) y CompareQuotesResult, ComparisonService, ProviderPort (puerto de salida), PendingQuote,
                                     #     ProviderResult, ProviderFailureReason, ComparisonMetrics (puerto de salida de observabilidad), ComparisonOutcome
         Campaign/                   #     CampaignPricingService, PricedOffer
       Domain/
@@ -294,7 +295,7 @@ Comparator/
 
 - **`Application`**: casos de uso y los contratos que estos necesitan del exterior. `ProviderPort` vive junto a su único consumidor, `ComparisonService`, porque es `ComparisonService` quien define qué necesita de un provider. Por el mismo criterio, `ComparisonMetrics`, el puerto de salida de observabilidad, va también aquí, junto a su consumidor, `CompareQuotes` (`observability.md` §3.4).
 - **`Domain`**: el modelo y los value objects, sin frameworks ni entrada/salida. `Model` agrupa los objetos de dominio compuestos (`QuoteRequest`, `ComparisonOffer`); `ValueObjects` agrupa los value objects y los enums de dominio. Hoy todos son objetos inmutables: el ejercicio no persiste estado. Las excepciones de dominio (`InvalidQuoteRequest`) van en `Exception`.
-- **`Infra`**: adaptadores hacia el mundo exterior. Todo lo relacionado con APIs de terceros va en `Infra/ThirdParty`, con una carpeta por provider que contiene todo lo suyo: su adapter (`providers.md` §2) y, si se extraen, sus mappers y DTOs de payload. Añadir un provider nuevo (§1) es añadir una carpeta nueva, sin tocar las existentes. `Infra/Observability` contiene el adaptador de métricas (`observability.md` §3.4).
+- **`Infra`**: adaptadores hacia el mundo exterior. Todo lo relacionado con APIs de terceros va en `Infra/ThirdParty`, con una carpeta por provider que contiene todo lo suyo: su adapter (`providers.md` §2) y, si se extraen, sus mappers y DTOs de payload. Añadir un provider nuevo (§1) es añadir una carpeta nueva, sin tocar las existentes. El código común a todos los adapters (clase base, helpers de payload) vive en la raíz de `ThirdParty`; el específico de cada provider, en su carpeta. `Infra/Observability` contiene el adaptador de métricas (`observability.md` §3.4).
 - **`UI`**: puntos de entrada de la aplicación. Hoy solo `Http`.
 
 Reglas de la estructura:

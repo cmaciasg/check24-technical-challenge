@@ -97,6 +97,8 @@ Se modela como enum de dos valores en vez de un booleano (`isCommercial`) para q
 | `vehicleType` | Debe ser uno de `SEDAN \| HATCHBACK \| SUV \| VAN`. |
 | `usageType` | Debe ser uno de `PRIVATE \| COMMERCIAL`. |
 
+**Qué es "hoy".** Las reglas de fecha "pasada" y de edad se evalúan contra la fecha UTC del servidor. El frontend limita el selector de fecha (`max`) con la fecha local del navegador, así que en las horas en que la fecha local y la UTC difieren, el frontend y el backend pueden discrepar en un día en el límite de los 18 o de los 99 años. La autoridad es siempre el backend (`400`, `architecture.md` §4.1); ese desfase de como mucho un día se acepta de forma consciente, porque resolverlo exigiría que el frontend conociera la hora del servidor.
+
 Un `QuoteRequest` que incumpla cualquiera de estas reglas nunca llega a construirse — el intento de construcción lanza `InvalidQuoteRequest` (§1.5), que el controlador de `POST /comparison` traduce a `400 Bad Request`, sin invocar a ningún adapter de provider (contrato completo de la petición en `architecture.md` §4.1).
 
 ### 1.5 `InvalidQuoteRequest` y códigos de regla
