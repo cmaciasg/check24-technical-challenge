@@ -257,7 +257,7 @@ backend/src/
     CarInsurance/                   #   bounded context: comparador de seguros de coche
       Application/
         Compare/                    #     CompareQuotes (caso de uso) y CompareQuotesResult, ComparisonService, ProviderPort (puerto de salida), PendingQuote,
-                                    #     ProviderResult, ProviderFailureReason, ComparisonMetrics (puerto de salida de observabilidad), ComparisonOutcome
+                                    #     ProviderResult, ProviderFailureReason, ComparisonMetrics (puerto de salida de observabilidad), ComparisonOutcome, ResolvedPendingQuote (PendingQuote que ya lleva el resultado dentro)
         Campaign/                   #     CampaignPricingService, PricedOffer
       Domain/
         Model/                      #     QuoteRequest, ComparisonOffer
@@ -295,7 +295,7 @@ Comparator/
 
 - **`Application`**: casos de uso y los contratos que estos necesitan del exterior. `ProviderPort` vive junto a su único consumidor, `ComparisonService`, porque es `ComparisonService` quien define qué necesita de un provider. Por el mismo criterio, `ComparisonMetrics`, el puerto de salida de observabilidad, va también aquí, junto a su consumidor, `CompareQuotes` (`observability.md` §3.4).
 - **`Domain`**: el modelo y los value objects, sin frameworks ni entrada/salida. `Model` agrupa los objetos de dominio compuestos (`QuoteRequest`, `ComparisonOffer`); `ValueObjects` agrupa los value objects y los enums de dominio. Hoy todos son objetos inmutables: el ejercicio no persiste estado. Las excepciones de dominio (`InvalidQuoteRequest`) van en `Exception`.
-- **`Infra`**: adaptadores hacia el mundo exterior. Todo lo relacionado con APIs de terceros va en `Infra/ThirdParty`, con una carpeta por provider que contiene todo lo suyo: su adapter (`providers.md` §2) y, si se extraen, sus mappers y DTOs de payload. Añadir un provider nuevo (§1) es añadir una carpeta nueva, sin tocar las existentes. El código común a todos los adapters (clase base, helpers de payload) vive en la raíz de `ThirdParty`; el específico de cada provider, en su carpeta. `Infra/Observability` contiene el adaptador de métricas (`observability.md` §3.4).
+- **`Infra`**: adaptadores hacia el mundo exterior. Todo lo relacionado con APIs de terceros va en `Infra/ThirdParty`, con una carpeta por provider que contiene todo lo suyo: su adapter (`providers.md` §2) y, si se extraen, sus mappers y DTOs de payload. Añadir un provider nuevo (§1) es añadir una carpeta nueva, sin tocar las existentes. El código común a todos los adapters (clase base, helpers de payload y `LazyPendingQuote`, el `PendingQuote` de las llamadas HTTP, que resuelve al llamar a `collect()`) vive en la raíz de `ThirdParty`; el específico de cada provider, en su carpeta. `Infra/Observability` contiene el adaptador de métricas (`observability.md` §3.4).
 - **`UI`**: puntos de entrada de la aplicación. Hoy solo `Http`.
 
 Reglas de la estructura:
