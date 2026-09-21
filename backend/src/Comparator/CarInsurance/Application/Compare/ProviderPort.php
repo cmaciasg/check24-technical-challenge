@@ -20,8 +20,11 @@ interface ProviderPort
     public function name(): ProviderName;
 
     /**
-     * Nunca lanza excepción por un fallo esperado del partner (timeout, HTTP de
-     * error, respuesta malformada): esos casos se modelan como ProviderResult::failure().
+     * Primer paso: construye el payload y lanza la consulta al provider sin esperar
+     * su respuesta. Nunca lanza excepción por un fallo esperado del partner: si algo
+     * falla al lanzar, devuelve un PendingQuote ya resuelto a ProviderResult::failure().
+     * Solo debería propagar una excepción ante un error de programación (p. ej. un
+     * QuoteRequest inválido que ya debería haber sido validado antes de llegar aquí).
      */
-    public function quote(QuoteRequest $request): ProviderResult;
+    public function start(QuoteRequest $request): PendingQuote;
 }

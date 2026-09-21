@@ -9,8 +9,10 @@ use App\Comparator\CarInsurance\Application\Compare\ProviderPort;
 use App\Comparator\CarInsurance\Application\Compare\ProviderResult;
 use App\Comparator\CarInsurance\Domain\ValueObjects\CoverageLevel;
 use App\Tests\Support\QuoteRequests;
+use App\Tests\Support\SteppingClock;
 use PHPUnit\Framework\Attributes\Group;
 use PHPUnit\Framework\TestCase;
+use Psr\Clock\ClockInterface;
 use Symfony\Component\HttpClient\Exception\TimeoutException;
 use Symfony\Component\HttpClient\Exception\TransportException;
 use Symfony\Component\HttpClient\MockHttpClient;
@@ -31,14 +33,14 @@ abstract class AdapterTestCase extends TestCase
 
     abstract protected function providerDirectory(): string;
 
-    abstract protected function createAdapter(MockHttpClient $client): ProviderPort;
+    abstract protected function createAdapter(MockHttpClient $client, ?ClockInterface $clock = null): ProviderPort;
 
     protected function fixture(string $name): string
     {
         return (string) file_get_contents(__DIR__.'/../../../../../Fixtures/'.$this->providerDirectory().'/'.$name);
     }
 
-    protected function quoteWithResponse(MockResponse|\Closure $response): ProviderResult
+    protected function quoteWithResponse(MockResponse|\Closure $response, ?ClockInterface $clock = null): ProviderResult
     {
         $client = new MockHttpClient(function (string $method, string $url, array $options) use ($response): MockResponse {
             $this->sentUrl = $url;
@@ -47,7 +49,7 @@ abstract class AdapterTestCase extends TestCase
             return $response instanceof \Closure ? $response() : $response;
         });
 
-        return $this->createAdapter($client)->quote(QuoteRequests::valid());
+        return $this->createAdapter($client, $clock)->start(QuoteRequests::valid())->collect();
     }
 
     protected function quoteFixture(string $fixture, int $status = 200): ProviderResult
@@ -75,25 +77,53 @@ abstract class AdapterTestCase extends TestCase
         self::assertSame($reason, $result->failureReason);
     }
 
-    public function testTransportTimeoutBecomesATimeoutFailure(): void
+    public function testTransportFailureAfterTheTimeoutHasElapsedBecomesATimeoutFailure(): void
     {
-        $result = $this->quoteWithResponse(static fn () => throw new TimeoutException('Idle timeout reached.'));
+        $result = $this->quoteWithResponse(static fn () => throw new TransportException('Operation timed out'), new SteppingClock(self::TIMEOUT_MS));
 
         $this->assertFailure($result, ProviderFailureReason::TIMEOUT);
     }
 
-    public function testCurlMaxDurationErrorBecomesATimeoutFailure(): void
+    public function testTimeoutClassificationDoesNotDependOnTheExceptionType(): void
     {
-        $result = $this->quoteWithResponse(static fn () => throw new TransportException('Operation timed out after 2001 milliseconds with 0 bytes received'));
+        $result = $this->quoteWithResponse(static fn () => throw new TimeoutException('Idle timeout reached.'), new SteppingClock(self::TIMEOUT_MS + 1));
 
         $this->assertFailure($result, ProviderFailureReason::TIMEOUT);
     }
 
-    public function testOtherTransportErrorsBecomeAnUnknownError(): void
+    public function testTransportFailureBeforeTheTimeoutHasElapsedBecomesAnUnknownError(): void
     {
-        $result = $this->quoteWithResponse(static fn () => throw new TransportException('Connection refused'));
+        $result = $this->quoteWithResponse(static fn () => throw new TransportException('Connection refused'), new SteppingClock(self::TIMEOUT_MS - 1));
 
         $this->assertFailure($result, ProviderFailureReason::UNKNOWN_ERROR);
+    }
+
+    public function testTimeoutLikeTextWithoutElapsedTimeIsNotATimeout(): void
+    {
+        $result = $this->quoteWithResponse(static fn () => throw new TransportException('Operation timed out'), new SteppingClock(10));
+
+        $this->assertFailure($result, ProviderFailureReason::UNKNOWN_ERROR);
+    }
+
+    #[Group('TC-7')]
+    public function testElapsedTimeIsTheTransportTotalTimeRegardlessOfCollectionOrder(): void
+    {
+        $slow = $this->createAdapter(new MockHttpClient(new MockResponse($this->fixture('success.json'), ['total_time' => 1.5])), new SteppingClock(1500))->start(QuoteRequests::valid());
+        $fast = $this->createAdapter(new MockHttpClient(new MockResponse($this->fixture('success.json'), ['total_time' => 0.3])), new SteppingClock(1500))->start(QuoteRequests::valid());
+
+        $slowResult = $slow->collect();
+        $fastResult = $fast->collect();
+
+        self::assertSame(1500, $slowResult->elapsedMs);
+        self::assertSame(300, $fastResult->elapsedMs);
+    }
+
+    #[Group('TC-7')]
+    public function testElapsedTimeFallsBackToTheClockWhenTheTransportReportsNoTotalTime(): void
+    {
+        $result = $this->quoteWithResponse(new MockResponse($this->fixture('success.json'), ['total_time' => 0.0]), new SteppingClock(250));
+
+        self::assertSame(250, $result->elapsedMs);
     }
 
     public function testNon2xxStatusBecomesAnHttpError(): void

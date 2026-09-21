@@ -11,7 +11,9 @@ use App\Comparator\CarInsurance\Domain\ValueObjects\UsageType;
 use App\Comparator\CarInsurance\Domain\ValueObjects\VehicleType;
 use App\Comparator\CarInsurance\Infra\ThirdParty\ProviderA\ProviderAAdapter;
 use App\Tests\Support\QuoteRequests;
+use App\Tests\Support\SteppingClock;
 use PHPUnit\Framework\Attributes\DataProvider;
+use Psr\Clock\ClockInterface;
 use Symfony\Component\HttpClient\MockHttpClient;
 use Symfony\Component\HttpClient\Response\MockResponse;
 
@@ -22,9 +24,9 @@ final class ProviderAAdapterTest extends AdapterTestCase
         return 'ProviderA';
     }
 
-    protected function createAdapter(MockHttpClient $client): ProviderPort
+    protected function createAdapter(MockHttpClient $client, ?ClockInterface $clock = null): ProviderPort
     {
-        return new ProviderAAdapter($client, self::TIMEOUT_MS, 'http://backend');
+        return new ProviderAAdapter($client, self::TIMEOUT_MS, 'http://backend', $clock ?? new SteppingClock(100));
     }
 
     public function testDeclaresItsIdentity(): void
@@ -54,7 +56,7 @@ final class ProviderAAdapterTest extends AdapterTestCase
             return new MockResponse($this->fixture('success.json'));
         });
 
-        $this->createAdapter($client)->quote(QuoteRequests::valid(vehicleType: $vehicleType, usageType: $usageType));
+        $this->createAdapter($client)->start(QuoteRequests::valid(vehicleType: $vehicleType, usageType: $usageType))->collect();
 
         self::assertSame($vehicleType->value, $this->sentPayload['vehicle']['type']);
         self::assertSame($usageType->value, $this->sentPayload['vehicle']['usage']);

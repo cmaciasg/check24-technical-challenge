@@ -8,12 +8,9 @@ use App\Comparator\CarInsurance\Domain\Model\QuoteRequest;
 use Symfony\Component\DependencyInjection\Attribute\AutowireIterator;
 
 /**
- * Único punto que conoce a todos los providers a la vez. Lanza las consultas de
- * forma concurrente y devuelve un ProviderResult por provider, sin traducirlo.
- *
- * Cada provider corre en una Fiber: su adapter lanza la petición HTTP sin
- * bloquear y cede el control (ProviderHttpCall), de modo que las peticiones de
- * todos los providers están en vuelo a la vez antes de esperar la primera respuesta.
+ * Único punto que conoce a todos los providers a la vez. Lanza las consultas de todos
+ * (start()) antes de esperar la respuesta de ninguno y después las recoge en el orden
+ * en que se lanzaron (collect()), devolviendo un ProviderResult por provider sin traducirlo.
  */
 final class ComparisonService
 {
@@ -27,21 +24,11 @@ final class ComparisonService
     /** @return list<ProviderResult> */
     public function compare(QuoteRequest $request): array
     {
-        $fibers = [];
+        $pending = [];
         foreach ($this->providers as $provider) {
-            $fiber = new \Fiber(static fn (): ProviderResult => $provider->quote($request));
-            $fiber->start();
-            $fibers[] = $fiber;
+            $pending[] = $provider->start($request);
         }
 
-        $results = [];
-        foreach ($fibers as $fiber) {
-            while (!$fiber->isTerminated()) {
-                $fiber->resume();
-            }
-            $results[] = $fiber->getReturn();
-        }
-
-        return $results;
+        return array_map(static fn (PendingQuote $quote): ProviderResult => $quote->collect(), $pending);
     }
 }

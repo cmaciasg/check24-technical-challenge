@@ -4,9 +4,11 @@ declare(strict_types=1);
 
 namespace App\Tests\Support;
 
+use App\Comparator\CarInsurance\Application\Compare\PendingQuote;
 use App\Comparator\CarInsurance\Application\Compare\ProviderFailureReason;
 use App\Comparator\CarInsurance\Application\Compare\ProviderPort;
 use App\Comparator\CarInsurance\Application\Compare\ProviderResult;
+use App\Comparator\CarInsurance\Application\Compare\ResolvedPendingQuote;
 use App\Comparator\CarInsurance\Domain\Model\ComparisonOffer;
 use App\Comparator\CarInsurance\Domain\Model\QuoteRequest;
 use App\Comparator\CarInsurance\Domain\ValueObjects\CoverageLevel;
@@ -47,10 +49,21 @@ final class FakeProvider implements ProviderPort
         return ProviderName::fromString(strtoupper($this->id));
     }
 
-    public function quote(QuoteRequest $request): ProviderResult
+    public function start(QuoteRequest $request): PendingQuote
     {
         ++$this->calls;
 
+        return new ResolvedPendingQuote($this->result());
+    }
+
+    /** Atajo para los tests que solo necesitan el resultado: lanza y recoge en un paso. */
+    public function quote(QuoteRequest $request): ProviderResult
+    {
+        return $this->start($request)->collect();
+    }
+
+    private function result(): ProviderResult
+    {
         if (null !== $this->failure) {
             return ProviderResult::failure($this->id(), $this->name(), $this->failure, $this->elapsedMs);
         }

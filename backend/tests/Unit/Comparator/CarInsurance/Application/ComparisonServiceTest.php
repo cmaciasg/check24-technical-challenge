@@ -5,12 +5,14 @@ declare(strict_types=1);
 namespace App\Tests\Unit\Comparator\CarInsurance\Application;
 
 use App\Comparator\CarInsurance\Application\Compare\ComparisonService;
+use App\Comparator\CarInsurance\Application\Compare\PendingQuote;
 use App\Comparator\CarInsurance\Application\Compare\ProviderFailureReason;
 use App\Comparator\CarInsurance\Application\Compare\ProviderPort;
 use App\Comparator\CarInsurance\Application\Compare\ProviderResult;
 use App\Comparator\CarInsurance\Domain\Model\QuoteRequest;
 use App\Comparator\CarInsurance\Domain\ValueObjects\ProviderId;
 use App\Comparator\CarInsurance\Domain\ValueObjects\ProviderName;
+use App\Comparator\CarInsurance\Infra\ThirdParty\LazyPendingQuote;
 use App\Tests\Support\FakeProvider;
 use App\Tests\Support\QuoteRequests;
 use PHPUnit\Framework\Attributes\Group;
@@ -101,13 +103,15 @@ final class ComparisonServiceTest extends TestCase
                     return ProviderName::fromString($this->id);
                 }
 
-                public function quote(QuoteRequest $request): ProviderResult
+                public function start(QuoteRequest $request): PendingQuote
                 {
                     ($this->record)('launched '.$this->id);
-                    \Fiber::suspend(); // como hace el adapter tras lanzar la petición sin bloquear
-                    ($this->record)('resolved '.$this->id);
 
-                    return ProviderResult::failure($this->id(), $this->name(), ProviderFailureReason::TIMEOUT, 0);
+                    return new LazyPendingQuote(function (): ProviderResult {
+                        ($this->record)('resolved '.$this->id);
+
+                        return ProviderResult::failure($this->id(), $this->name(), ProviderFailureReason::TIMEOUT, 0);
+                    });
                 }
             };
         }

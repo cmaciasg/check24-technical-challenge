@@ -8,7 +8,9 @@ use App\Comparator\CarInsurance\Application\Compare\ProviderFailureReason;
 use App\Comparator\CarInsurance\Application\Compare\ProviderPort;
 use App\Comparator\CarInsurance\Domain\ValueObjects\CoverageLevel;
 use App\Comparator\CarInsurance\Infra\ThirdParty\ProviderC\ProviderCAdapter;
+use App\Tests\Support\SteppingClock;
 use PHPUnit\Framework\Attributes\DataProvider;
+use Psr\Clock\ClockInterface;
 use Symfony\Component\HttpClient\MockHttpClient;
 
 final class ProviderCAdapterTest extends AdapterTestCase
@@ -18,9 +20,9 @@ final class ProviderCAdapterTest extends AdapterTestCase
         return 'ProviderC';
     }
 
-    protected function createAdapter(MockHttpClient $client): ProviderPort
+    protected function createAdapter(MockHttpClient $client, ?ClockInterface $clock = null): ProviderPort
     {
-        return new ProviderCAdapter($client, self::TIMEOUT_MS, 'http://backend');
+        return new ProviderCAdapter($client, self::TIMEOUT_MS, 'http://backend', $clock ?? new SteppingClock(100));
     }
 
     public function testDeclaresItsIdentity(): void

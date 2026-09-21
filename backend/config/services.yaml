@@ -57,6 +57,9 @@ when@test:
         App\Tests\Support\ForcedOutcomePicker:
             public: true
         App\ProviderSimulation\ProviderOutcomePicker: '@App\Tests\Support\ForcedOutcomePicker'
+        # El reloj simulado permite que un pico de latencia "venza" el techo sin esperarlo (providers.md §1.1).
+        App\Tests\Support\SimulatedTimeClock: ~
+        Psr\Clock\ClockInterface: '@App\Tests\Support\SimulatedTimeClock'
         App\Tests\Support\InProcessProviderHttpClient: ~
         Symfony\Contracts\HttpClient\HttpClientInterface: '@App\Tests\Support\InProcessProviderHttpClient'
 
