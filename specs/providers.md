@@ -28,15 +28,28 @@ interface ProviderPort
     public function name(): ProviderName;
 
     /**
-     * Nunca lanza excepción por un fallo esperado del partner (timeout, HTTP
-     * de error, respuesta malformada). Esos casos se modelan como
-     * ProviderResult::failure(). Solo debería propagar una excepción ante un
-     * error de programación (p. ej. un QuoteRequest inválido que ya debería
-     * haber sido validado antes de llegar aquí).
+     * Primer paso: construye el payload y lanza la consulta al provider sin esperar
+     * su respuesta. Nunca lanza excepción por un fallo esperado del partner: si algo
+     * falla al lanzar, devuelve un PendingQuote ya resuelto a ProviderResult::failure().
+     * Solo debería propagar una excepción ante un error de programación (p. ej. un
+     * QuoteRequest inválido que ya debería haber sido validado antes de llegar aquí).
      */
-    public function quote(QuoteRequest $request): ProviderResult;
+    public function start(QuoteRequest $request): PendingQuote;
+}
+
+interface PendingQuote
+{
+    /**
+     * Segundo paso: espera el resultado (o el vencimiento del timeout) y lo traduce.
+     * Nunca lanza excepción por un fallo esperado del partner (timeout, HTTP de error,
+     * respuesta malformada): esos casos se modelan como ProviderResult::failure().
+     * Se llama exactamente una vez por PendingQuote.
+     */
+    public function collect(): ProviderResult;
 }
 ```
+
+El puerto tiene dos pasos, y no un único `quote()` bloqueante, porque solo separando "lanzar" de "recoger" pueden solaparse las esperas de varios providers sin que el orquestador conozca cómo se comunica cada uno. `PendingQuote` es un tipo propio de `Application`, junto a `ProviderPort`: no expone ninguna clase de HTTP, así que el puerto no filtra infraestructura hacia el dominio. Un provider cuyo cálculo fuera síncrono devolvería un `PendingQuote` que ya lleva el resultado dentro. El aislamiento de fallos (§5.2) se mantiene en los dos pasos: ni `start()` ni `collect()` dejan escapar una excepción por un fallo esperado.
 
 `ProviderId` es un value object, no un enum cerrado: el conjunto de providers es abierto por naturaleza (cada partner nuevo añade uno) y añadir un provider no debe obligar a tocar ningún fichero existente (`architecture.md` §1). Envuelve un texto con los mismos valores que se usan como `providerId` en el JSON de `POST /comparison` (`architecture.md` §4):
 
@@ -82,6 +95,8 @@ enum ProviderFailureReason: string
 }
 ```
 
+`TIMEOUT` es todo fallo de transporte que llega cuando han transcurrido, desde `start()`, al menos `app.providers.timeout_ms` según el reloj de la aplicación (`ClockInterface`). Cualquier otro fallo de transporte (DNS, conexión rechazada) es `UNKNOWN_ERROR`. La regla no depende del texto de ninguna excepción: el cliente HTTP informa de los vencimientos de formas distintas según el transporte y la versión, y ese texto no es una API estable.
+
 ### 1.2 `ProviderResult`
 
 ```php
@@ -109,7 +124,7 @@ final class ProviderResult
 }
 ```
 
-`elapsedMs` se registra siempre, en éxito y en fallo (incluido timeout, donde es aproximadamente el valor del timeout aplicado). Es el dato que `observability.md` usará como base de la métrica de latencia por provider.
+`elapsedMs` se registra siempre, en éxito y en fallo (incluido el timeout, donde es aproximadamente el valor del timeout aplicado). Se mide con el `total_time` que informa el transporte para esa petición, y no con el reloj de la aplicación: como el orquestador recoge los resultados en orden, el reloj de la aplicación inflaría la latencia de un provider rápido que se recoge después de uno lento (C, que responde en 300 ms, saldría con ≈ 1500 ms si se recoge tras B). Si el transporte no informa ese dato (ausente o no positivo), se usa la diferencia entre `start()` y la resolución según el reloj de la aplicación (`ClockInterface`), que cada adapter recibe inyectado. Es el dato que `observability.md` usa como base de la latencia por provider.
 
 `ProviderResult` es el informe que devuelve cada adapter y viaja sin traducir por la capa de aplicación: `ComparisonService` devuelve los tres `ProviderResult` tal cual (uno por adapter, siempre presente, éxito o fallo), el caso de uso `CompareQuotes` los combina con el resultado de la campaña (`architecture.md` §6) y el controlador los serializa a la respuesta pública de `POST /comparison`: los que tuvieron éxito alimentan `offers[]` (su `ComparisonOffer`) y los tres, éxito o fallo, alimentan `providerStatuses[]` (éxito/fallo + razón + `elapsedMs`). Nunca llega al frontend tal cual: la forma exacta de `offers[]` y `providerStatuses[]` está en `architecture.md` §4, no en este documento.
 
@@ -135,16 +150,24 @@ final class ComparisonOffer
 
 ## 2. Responsabilidad y límites de cada adapter
 
-Cada `Provider{A,B,C}Adapter implements ProviderPort` tiene exactamente cuatro responsabilidades, en este orden:
+Cada `Provider{A,B,C}Adapter implements ProviderPort` tiene exactamente cuatro responsabilidades, repartidas entre los dos pasos del puerto (§1):
+
+En `start()`:
 
 1. **Traducir** el `QuoteRequest` de dominio al payload específico del provider (nombres de campo, anidamiento y formato propios — ver punto 3).
-2. **Invocar** al provider simulado a través de un cliente HTTP inyectado, con el timeout único definido en el punto 5.
+2. **Invocar** al provider simulado a través de un cliente HTTP inyectado, con el techo de tiempo único definido en el punto 5, y sin esperar la respuesta.
+
+En `collect()`:
+
 3. **Validar y traducir** la respuesta cruda a `ComparisonOffer`. Cualquier campo ausente, tipo inesperado o JSON inválido se trata como fallo de parseo, nunca como excepción no controlada.
+
+En ambos pasos:
+
 4. **Nunca dejar escapar una excepción** hacia el orquestador. Toda excepción de transporte (timeout, conexión) o de parseo se captura en el propio adapter y se normaliza a `ProviderResult::failure(...)`.
 
-Además de estas cuatro, cada adapter declara su identidad (`id()` y `name()`); eso forma parte de implementar `ProviderPort` y no es una responsabilidad adicional de traducción ni de llamada.
+Además de estas cuatro, cada adapter declara su identidad (`id()` y `name()`) y recibe inyectados el cliente HTTP y el `ClockInterface` (para clasificar el `TIMEOUT` y, si hace falta, medir `elapsedMs`, §1.1 y §1.2); eso forma parte de implementar `ProviderPort` y no es una responsabilidad adicional de traducción ni de llamada.
 
-Esta cuarta responsabilidad es la que garantiza el aislamiento de fallos a nivel de contrato: el orquestador (`ComparisonService`, en `architecture.md`) puede asumir siempre que `quote()` devuelve, nunca lanza, y que un provider roto no puede tumbar la comparación completa.
+Esta cuarta responsabilidad es la que garantiza el aislamiento de fallos a nivel de contrato: el orquestador (`ComparisonService`, en `architecture.md`) puede asumir siempre que `start()` y `collect()` devuelven, nunca lanzan, y que un provider roto no puede tumbar la comparación completa.
 
 La traducción de payload (responsabilidad 1 y 3) es la parte de cada adapter que se testea de forma unitaria y determinista con fixtures, independientemente del simulador de latencia — ver TC-5 en el punto 5.3.
 
@@ -159,6 +182,8 @@ Los tres providers son deliberadamente distintos para cubrir, entre los tres, to
 | C | Partner con picos + fallos de formato/status | 85% normal ~U(150,400) ms / 10% pico ~U(2500,4000) ms / 5% fallo a latencia normal | 5% (repartido 3% HTTP 500 + 2% payload malformado) | Lista anidada, importe como string |
 
 Los rangos de latencia y los porcentajes son constantes de configuración (`app.providers.simulation.*`), no valores hardcodeados en el adapter, para poder ajustarlos o forzarlos desde tests.
+
+El importe que devuelve cada simulador es determinista: se deriva de los datos del `QuoteRequest` y de un factor propio de cada provider, para que los tres devuelvan precios distintos y reproducibles. Cada simulador devuelve además un nivel de cobertura fijo. La fórmula concreta no forma parte del contrato de este documento.
 
 ### 3.1 Provider A — rápido y fiable
 
@@ -257,13 +282,15 @@ El resultado simulado de cada provider (y, dentro de C, cuál de sus tres tipos:
 
 ## 4. Mecanismo de concurrencia (resumen)
 
-El orquestador (`ComparisonService`) invoca los tres adapters de forma concurrente, no secuencial, usando las peticiones asíncronas de Symfony HttpClient contra endpoints internos que simulan cada provider como si fueran sistemas HTTP externos reales, cada uno con su propio timeout aplicado a nivel de cliente. El detalle de implementación (rutas internas, aislamiento del código de simulación respecto al dominio) se documenta en `architecture.md`; este documento asume únicamente que, sea cual sea el mecanismo, `ProviderPort::quote()` no devuelve hasta que el resultado (éxito o fallo) está resuelto o hasta que se alcanza el timeout, y que ese timeout se aplica de forma independiente por provider — el retraso de uno no consume el presupuesto de tiempo de otro.
+El orquestador (`ComparisonService`) lanza la consulta de todos los providers antes de esperar la respuesta de ninguno: primero llama a `start()` en cada adapter y después a `collect()` en cada `PendingQuote`, en el orden en que se lanzaron. Como todas las peticiones ya están en vuelo cuando empieza la recogida, sus esperas se solapan y el tiempo total no es la suma de las latencias individuales. Cada adapter usa las peticiones asíncronas de Symfony HttpClient (`request()` sin resolver la respuesta hasta `collect()`) contra endpoints internos que simulan cada provider como si fueran sistemas HTTP externos reales. Recoger en orden no penaliza el tiempo total: cada respuesta se lee cuando le llega el turno, pero su techo de tiempo corre desde `start()`. El detalle de implementación (rutas internas, aislamiento del código de simulación respecto al dominio) se documenta en `architecture.md`; este documento asume únicamente que `start()` no espera la respuesta, que `collect()` no devuelve hasta que el resultado (éxito o fallo) está resuelto o vence el techo, y que ese techo se aplica de forma independiente por provider: el retraso de uno no consume el presupuesto de tiempo de otro.
 
 ## 5. Estrategia de timeout y aislamiento de fallos
 
 ### 5.1 Timeout único
 
 `PROVIDER_TIMEOUT_MS = 2000` (2000 ms), configurable vía parámetro de Symfony (`app.providers.timeout_ms`), aplicado por igual a los tres providers.
+
+El techo se aplica como duración máxima total de la petición (`max_duration` del cliente HTTP), contada desde `start()`, y lo hace cumplir el transporte. No se usa la opción `timeout`: en Symfony HttpClient es un timeout de inactividad (segundos sin recibir datos) y no limita la duración total.
 
 Se usa un único valor para los tres en lugar de un timeout ajustado por SLA de cada partner — una simplificación deliberada para este ejercicio (una implementación real probablemente tendría un timeout por partner basado en su SLA contractual). Queda registrada como alternativa considerada y descartada en `decisions.md`.
 
@@ -287,6 +314,7 @@ En consecuencia, el tiempo total de `POST /comparison` está acotado por `PROVID
 - **TC-4 (el Provider B nunca produce un timeout espurio)**: se verifica en dos partes. (a) Invariante de configuración, que recorre todos los providers configurados en lugar de nombrar a B y C: ninguna latencia de un resultado normal (no pico) de ningún provider supera `app.providers.timeout_ms` (2000 ms), y ninguna latencia de un resultado de pico de ningún provider queda por debajo de él. Con la configuración actual equivale a: máximo del Provider B (1800 ms) < 2000 ms < mínimo del pico del Provider C (2500 ms). Es instantáneo, falla si alguien cambia un rango y rompe el margen, y cubre automáticamente cualquier provider nuevo. (b) Una única ejecución real con la latencia del Provider B fijada en su máximo documentado (1800 ms): el resultado debe ser un éxito y no `failureReason = TIMEOUT`, lo que comprueba que el margen de 200 ms cubre el sobrecoste real de la llamada. Detalle en `testing.md` §3.4 y §6.
 - **TC-5 (traducción de adapter independiente del timing)**: cada adapter tiene tests unitarios que alimentan fixtures de respuesta cruda (éxito, malformada, error) sin pasar por el simulador de latencia, verificando solo la función de traducción `QuoteRequest → payload` y `payload crudo → ComparisonOffer | ProviderResult::failure`. Estos tests son deterministas y no dependen de temporizadores ni de concurrencia.
 - **TC-6 (determinismo del simulador)**: existe un punto de sustitución (el `ProviderOutcomePicker` del punto 3.4) que permite forzar un resultado simulado concreto de un provider concreto en un test de orquestación, sin depender de la probabilidad real. Sin este punto de sustitución, TC-1 a TC-4 no serían reproducibles de forma fiable.
+- **TC-7 (la latencia de un provider no depende del orden de recogida)**: con un provider rápido recogido después de uno lento (por ejemplo, A o C en su resultado normal recogido después de B), el `elapsedMs` de un resultado con éxito refleja el tiempo que el transporte informa para su propia petición, y no el tiempo que esperó a ser recogido. Cuando el transporte no informa ese dato, `elapsedMs` sale de la diferencia entre `start()` y la resolución según el reloj inyectado. Detalle de los tests en `testing.md` §6.
 
 ## 6. Referencia cruzada
 

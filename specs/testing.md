@@ -4,7 +4,7 @@
 
 Este documento no fija ningún comportamiento nuevo del sistema. Da forma ejecutable a las consecuencias testables que ya dejaron definidas los otros documentos de `/specs`:
 
-- Las seis de `providers.md` §5.3 (TC-1 a TC-6).
+- Las siete de `providers.md` §5.3 (TC-1 a TC-7).
 - Las siete de `product.md` §4.5 (TC-P1 a TC-P7).
 - Las cuatro de `observability.md` §10 (TC-O1 a TC-O4).
 
@@ -81,6 +81,7 @@ Contiene exactamente dos casos:
 - **`MockHttpClient` / `MockResponse`** de Symfony para simular respuestas y errores de transporte en los tests de adapters.
 - **PCOV o Xdebug** para el informe de cobertura (§9).
 - **PHPStan, ECS y Rector** como análisis estático y estilo, igual que en el resto del código.
+- Todas las herramientas de esta sección (PHPUnit, PHPStan, ECS, Rector, PCOV) se instalan en la imagen de desarrollo del backend y se ejecutan en contenedor (§11), no en el host.
 - Cada test lleva un atributo `#[Group('TC-x')]` con el identificador del TC que ejercita, para poder ejecutar `phpunit --group TC-1`.
 
 ### 4.2 Frontend (Vue)
@@ -149,8 +150,9 @@ Cada TC tiene al menos un test cuyo nombre lleva su identificador. Un mismo TC p
 | **TC-2** techo de tiempo | El total no supera el timeout más un margen | **Tiempo real** (§3.4). |
 | **TC-3** fallo total | Los tres fallan → 200 con `offers: []` | **Unitario:** `ComparisonService` no lanza y devuelve tres `ProviderResult` fallidos; `CompareQuotes` produce `offers` vacío. **Integración:** 200, `offers: []`, tres `failed` en `providerStatuses`. |
 | **TC-4** el Provider B no da timeout falso | `1800 < 2000 < 2500` y margen real suficiente | **Unitario:** invariante de configuración que recorre todos los providers configurados: ninguna latencia normal supera `app.providers.timeout_ms` y ninguna latencia de pico queda por debajo de él (con la configuración actual: Provider B ≤ 1800 ms < 2000 ms < 2500 ms ≤ pico del Provider C); cubre automáticamente providers nuevos. **Tiempo real:** una llamada con el Provider B a 1800 ms → `ok`. |
-| **TC-5** traducción del adapter | `QuoteRequest → payload` y `payload crudo → ComparisonOffer` o `failure` | **Unitario**, por cada adapter, con respuestas de `Fixtures/`: éxito, malformada, error HTTP y timeout simulado; tabla de mapeo de `CoverageLevel` completa; conversión del importe a céntimos. |
+| **TC-5** traducción del adapter | `QuoteRequest → payload` y `payload crudo → ComparisonOffer` o `failure` | **Unitario**, por cada adapter, con respuestas de `Fixtures/`: éxito, malformada, error HTTP y timeout simulado; tabla de mapeo de `CoverageLevel` completa; conversión del importe a céntimos; clasificación de fallos de transporte con un reloj inyectado: con al menos `timeout_ms` transcurridos es `TIMEOUT`, con menos es `UNKNOWN_ERROR`. |
 | **TC-6** determinismo del simulador | El picker permite forzar un resultado concreto | **Unitario:** el picker real, con generador de números inyectado, devuelve el resultado esperado para valores situados en cada frontera entre resultados de cada provider. Además, todos los tests de integración lo ejercitan al usar `ForcedOutcomePicker`. |
+| **TC-7** la latencia no depende del orden de recogida | Un provider rápido recogido tras uno lento conserva su propio `elapsedMs` | **Unitario:** un adapter con `MockResponse` cuyo `total_time` está fijado (por ejemplo, 0,3 s) se recoge después de otro cuyo `total_time` es 1,5 s; su `elapsedMs` es ≈ 300 ms y no ≈ 1500 ms. Un segundo test sin `total_time` comprueba el respaldo: `elapsedMs` sale de la diferencia entre `start()` y la resolución según el reloj inyectado. |
 | **TC-P1** `QuoteRequest` inválido | 400 y ningún provider invocado | **Unitario:** `DateOfBirth`, `VehicleType`, `UsageType` (casos límite en §8). **Integración:** `POST /comparison` con entrada inválida → 400, y un adapter espía confirma cero llamadas. |
 | **TC-P2** persistencia sobrevive a recarga | Lo escrito (incluso inválido) se recupera | **Unitario (frontend):** el store se rellena y se crea un store nuevo desde cero, que es lo que ocurre al recargar; recupera exactamente lo escrito. **E2E:** recarga real de la pestaña. |
 | **TC-P3** persistencia se limpia solo en éxito | 200 limpia; 400 y 500 conservan | **Unitario (frontend):** el store con una llamada a la API falsa que responde 200, 400 o 500. |
@@ -213,7 +215,7 @@ No se escribe ningún otro E2E: todo lo demás ya lo cubren los niveles inferior
 
 Se considera suficientemente testeado el sistema cuando:
 
-- Cada uno de los 17 TC tiene al menos un test identificado por su TC (§6).
+- Cada uno de los 18 TC tiene al menos un test identificado por su TC (§6).
 - Se cubren los casos límite de §8.1, no solo el camino feliz.
 - El informe de cobertura no muestra lógica de negocio sin ningún test.
 
@@ -236,12 +238,15 @@ Cada nivel se lanza con un comando:
 
 | Comando | Qué ejecuta | Cuándo |
 |---|---|---|
-| `make test` | Unitarios (backend y frontend) e integración | Constantemente en local; en CI, en cada push |
+| `make test` | Unitarios (backend y frontend) e integración, en contenedor | Constantemente en local; en CI, en cada push |
 | `make test-realtime` | Suite de tiempo real (requiere el stack de test levantado) | En local cuando se toque el timeout o la concurrencia; en CI, en cada PR hacia la rama principal |
 | `make test-e2e` | E2E con Playwright (requiere el stack de test levantado) | Igual que el anterior |
 | `make test-all` | Todo lo anterior | Antes de entregar |
-| `make lint` | PHPStan, ECS, `vue-tsc` y ESLint | En local y en CI, en cada push |
+| `make lint` | PHPStan, ECS, Rector (solo comprobación), `vue-tsc` y ESLint, en contenedor | En local y en CI, en cada push |
+| `make coverage` | Informe de cobertura del backend (§9), en contenedor con PCOV | Antes de entregar |
 | `make test-alerts` | `promtool check rules` y `promtool test rules` sobre las reglas de alerta (TC-O4), en un contenedor de un solo uso; no necesita el stack levantado | Igual que `make lint` |
+
+`make test` y `make lint` solo requieren Docker. `make test-realtime` y `make test-e2e` se ejecutan en el host (necesitan `make install`), porque Playwright en contenedor añade una imagen grande y fallos intermitentes de red que no compensan; queda como decisión consciente registrada en `decisions.md`.
 
 ### 11.1 Ejecución en CI (independiente de la plataforma)
 
@@ -254,7 +259,7 @@ Estos pasos se traducen tal cual a GitHub Actions, GitLab CI o Bitbucket Pipelin
 
 ## 12. Referencia cruzada
 
-- Las TC-1 a TC-6, el `ProviderOutcomePicker` y las latencias parametrizadas están en `providers.md` §3.4 y §5.3.
+- Las TC-1 a TC-7, el `ProviderOutcomePicker` y las latencias parametrizadas están en `providers.md` §3.4 y §5.3.
 - Las TC-P1 a TC-P7 están en `product.md` §4.5; el store desacoplado y la persistencia, en `product.md` §2–3 y `architecture.md` §5.
 - El mecanismo de simulación por HTTP de loopback y el requisito de concurrencia del servidor, en `architecture.md` §3.
 - Los TC-O1 a TC-O4, el formato de logs, las métricas y las reglas de alerta están en `observability.md` §3, §4, §6 y §10.
