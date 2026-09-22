@@ -1,0 +1,16 @@
+# Imágenes de desarrollo para `make test`, `make lint` y `make coverage` (testing.md §4.1, §11).
+# No se usan con `docker compose up`: solo con `run --rm`, vía el Makefile.
+name: comparator-dev
+
+services:
+  backend-dev:
+    build:
+      context: ./backend
+      target: dev
+    profiles: ["dev"]
+
+  frontend-dev:
+    build:
+      context: ./frontend
+      target: build
+    profiles: ["dev"]

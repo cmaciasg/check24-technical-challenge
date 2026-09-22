@@ -1,5 +1,5 @@
 # Backend Symfony: nginx + PHP-FPM en un solo contenedor, con APCu para las métricas.
-FROM php:8.4-fpm-alpine
+FROM php:8.4-fpm-alpine AS base
 
 RUN apk add --no-cache nginx supervisor \
     && apk add --no-cache --virtual .build-deps $PHPIZE_DEPS linux-headers \
@@ -10,6 +10,22 @@ RUN apk add --no-cache nginx supervisor \
 COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
 
 WORKDIR /app
+
+# Imagen de desarrollo: dependencias dev (PHPUnit, PHPStan, ECS, Rector) y PCOV para cobertura,
+# igual que la app en PHP 8.4. Usada por `make test`, `make lint` y `make coverage` (testing.md §4.1, §11).
+FROM base AS dev
+
+RUN apk add --no-cache --virtual .build-deps $PHPIZE_DEPS linux-headers \
+    && pecl install pcov \
+    && docker-php-ext-enable pcov \
+    && apk del .build-deps
+
+COPY composer.json composer.lock symfony.lock ./
+RUN composer install --no-scripts --no-interaction
+
+COPY . .
+
+FROM base AS prod
 
 COPY composer.json composer.lock symfony.lock ./
 RUN composer install --no-dev --no-scripts --no-autoloader --no-interaction

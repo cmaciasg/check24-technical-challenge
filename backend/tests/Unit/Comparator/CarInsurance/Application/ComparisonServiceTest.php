@@ -12,7 +12,7 @@ use App\Comparator\CarInsurance\Application\Compare\ProviderResult;
 use App\Comparator\CarInsurance\Domain\Model\QuoteRequest;
 use App\Comparator\CarInsurance\Domain\ValueObjects\ProviderId;
 use App\Comparator\CarInsurance\Domain\ValueObjects\ProviderName;
-use App\Comparator\CarInsurance\Infra\ThirdParty\LazyPendingQuote;
+use App\Tests\Support\FakePendingQuote;
 use App\Tests\Support\FakeProvider;
 use App\Tests\Support\QuoteRequests;
 use PHPUnit\Framework\Attributes\Group;
@@ -107,7 +107,7 @@ final class ComparisonServiceTest extends TestCase
                 {
                     ($this->record)('launched '.$this->id);
 
-                    return new LazyPendingQuote(function (): ProviderResult {
+                    return new FakePendingQuote(function (): ProviderResult {
                         ($this->record)('resolved '.$this->id);
 
                         return ProviderResult::failure($this->id(), $this->name(), ProviderFailureReason::TIMEOUT, 0);
