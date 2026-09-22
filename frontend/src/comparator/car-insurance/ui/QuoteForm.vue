@@ -117,6 +117,22 @@ function onInput(field: FieldName, event: Event): void {
   border: 0;
 }
 
+.field--group {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  column-gap: var(--space-5);
+  row-gap: var(--space-2);
+}
+
+.field--group .field__label {
+  flex-basis: 100%;
+}
+
+.field--group .field__error {
+  flex-basis: 100%;
+}
+
 .field__label {
   font-size: 0.875rem;
   font-weight: 600;
@@ -200,8 +216,14 @@ function onInput(field: FieldName, event: Event): void {
 
 @media (min-width: 768px) {
   .form {
-    grid-template-columns: repeat(3, 1fr) auto;
-    align-items: end;
+    grid-template-columns: repeat(3, 1fr);
+    align-items: start;
+  }
+
+  .form__submit {
+    grid-column: 1 / -1;
+    justify-self: end;
+    margin-top: var(--space-2);
   }
 }
 </style>

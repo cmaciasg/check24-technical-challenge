@@ -1,7 +1,7 @@
 import type { Messages } from './messages'
 
 export const messagesEn: Messages = {
-  'app.title': 'Compare car insurance',
+  'app.title': 'Car Insurance Comparator',
   'form.birthDate.label': 'Date of birth',
   'form.vehicleType.label': 'Vehicle type',
   'form.vehicleType.placeholder': 'Select a vehicle type',

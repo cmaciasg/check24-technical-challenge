@@ -17,23 +17,15 @@ const store = useComparisonStore()
       <span class="view__badge" aria-hidden="true">
         <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
           <path
-            d="M12 2.5l7.5 3v5.2c0 5-3.2 8.6-7.5 10.3-4.3-1.7-7.5-5.3-7.5-10.3V5.5l7.5-3z"
-            fill="currentColor"
-            fill-opacity="0.14"
-          />
-          <path
-            d="M12 2.5l7.5 3v5.2c0 5-3.2 8.6-7.5 10.3-4.3-1.7-7.5-5.3-7.5-10.3V5.5l7.5-3z"
+            d="M19 17h2c.6 0 1-.4 1-1v-3c0-.9-.7-1.7-1.5-1.9C18.7 10.6 16 10 16 10s-1.3-1.4-2.2-2.3c-.5-.4-1.1-.7-1.8-.7H5c-.6 0-1.1.4-1.4.9l-1.4 2.9A3.7 3.7 0 0 0 2 12v4c0 .6.4 1 1 1h2"
             stroke="currentColor"
-            stroke-width="1.4"
-            stroke-linejoin="round"
-          />
-          <path
-            d="M8.3 12.3l2.4 2.4 5-5"
-            stroke="currentColor"
-            stroke-width="1.4"
+            stroke-width="1.5"
             stroke-linecap="round"
             stroke-linejoin="round"
           />
+          <circle cx="7" cy="17" r="2" stroke="currentColor" stroke-width="1.5" />
+          <path d="M9 17h6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" />
+          <circle cx="17" cy="17" r="2" stroke="currentColor" stroke-width="1.5" />
         </svg>
       </span>
       <h1 class="view__title">{{ t('app.title') }}</h1>
@@ -72,16 +64,18 @@ const store = useComparisonStore()
 
 .view__header {
   display: flex;
+  flex-direction: column;
   align-items: center;
+  text-align: center;
   gap: var(--space-3);
-  margin: 0 0 var(--space-6);
+  margin: 0 0 var(--space-8);
 }
 
 .view__badge {
   display: grid;
   place-items: center;
-  width: 2.75rem;
-  height: 2.75rem;
+  width: 3.25rem;
+  height: 3.25rem;
   flex: none;
   color: var(--color-primary);
   background: var(--color-primary-soft);
@@ -95,9 +89,9 @@ const store = useComparisonStore()
 
 .view__title {
   margin: 0;
-  font-size: 1.75rem;
-  font-weight: 700;
-  letter-spacing: -0.01em;
+  font-size: 2.25rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
   color: var(--color-text);
 }
 
