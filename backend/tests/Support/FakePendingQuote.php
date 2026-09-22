@@ -8,10 +8,10 @@ use App\Comparator\CarInsurance\Application\Compare\PendingQuote;
 use App\Comparator\CarInsurance\Application\Compare\ProviderResult;
 
 /** PendingQuote de test cuyo resultado se calcula al recogerlo, en la primera y única llamada a collect(). */
-final class FakePendingQuote implements PendingQuote
+final readonly class FakePendingQuote implements PendingQuote
 {
     /** @param \Closure(): ProviderResult $collect */
-    public function __construct(private readonly \Closure $collect)
+    public function __construct(private \Closure $collect)
     {
     }
 

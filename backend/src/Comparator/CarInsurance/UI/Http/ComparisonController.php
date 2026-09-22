@@ -18,13 +18,13 @@ use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Attribute\Route;
 
 /** Adaptador de entrada: solo traduce HTTP. Construye el QuoteRequest, invoca el caso de uso y serializa. */
-final class ComparisonController
+final readonly class ComparisonController
 {
     public function __construct(
-        private readonly CompareQuotes $compareQuotes,
-        private readonly ComparisonMetrics $metrics,
-        private readonly LoggerInterface $logger,
-        private readonly ClockInterface $clock,
+        private CompareQuotes $compareQuotes,
+        private ComparisonMetrics $metrics,
+        private LoggerInterface $logger,
+        private ClockInterface $clock,
     ) {
     }
 
@@ -70,7 +70,7 @@ final class ComparisonController
             'priceAmountCents' => $offer->price->amountCents,
         ];
 
-        if (null !== $priced->discountedPrice) {
+        if ($priced->discountedPrice instanceof \App\Comparator\CarInsurance\Domain\ValueObjects\Price) {
             $serialized['discountedPriceAmountCents'] = $priced->discountedPrice->amountCents;
             $serialized['campaignApplied'] = true;
         }
@@ -90,7 +90,7 @@ final class ComparisonController
             'status' => $result->success ? 'ok' : 'failed',
         ];
 
-        if (null !== $result->failureReason) {
+        if ($result->failureReason instanceof \App\Comparator\CarInsurance\Application\Compare\ProviderFailureReason) {
             $status['reason'] = $result->failureReason->value;
         }
 

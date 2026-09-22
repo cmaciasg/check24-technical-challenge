@@ -7,13 +7,13 @@ namespace App\ProviderSimulation;
 use Symfony\Component\DependencyInjection\Attribute\AutowireIterator;
 
 /** Decide y construye la respuesta de un provider simulado, sin esperar la latencia (eso lo hace quien sirve HTTP). */
-final class SimulatedProviderGateway
+final readonly class SimulatedProviderGateway
 {
     /** @param iterable<SimulatedProvider> $providers */
     public function __construct(
         #[AutowireIterator(SimulatedProvider::TAG)]
-        private readonly iterable $providers,
-        private readonly ProviderOutcomePicker $picker,
+        private iterable $providers,
+        private ProviderOutcomePicker $picker,
     ) {
     }
 

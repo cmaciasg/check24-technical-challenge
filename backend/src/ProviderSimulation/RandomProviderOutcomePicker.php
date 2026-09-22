@@ -8,15 +8,15 @@ namespace App\ProviderSimulation;
  * Implementación real del picker: decide el resultado con las probabilidades del perfil.
  * El generador de números se inyecta para poder probar las fronteras sin azar (TC-6).
  */
-final class RandomProviderOutcomePicker implements ProviderOutcomePicker
+final readonly class RandomProviderOutcomePicker implements ProviderOutcomePicker
 {
     private const ROLL_MAX = 9999;
 
     /** @var \Closure(int, int): int */
-    private readonly \Closure $randomInt;
+    private \Closure $randomInt;
 
     public function __construct(
-        private readonly SimulationProfiles $profiles,
+        private SimulationProfiles $profiles,
         ?\Closure $randomInt = null,
     ) {
         $this->randomInt = $randomInt ?? random_int(...);

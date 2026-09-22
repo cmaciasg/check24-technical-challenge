@@ -10,15 +10,15 @@ use App\Comparator\CarInsurance\Domain\ValueObjects\DiscountType;
 use Symfony\Component\DependencyInjection\Attribute\Autowire;
 
 /** Aplica la campaña de marketing por igual a todas las ofertas, sin distinguir provider. */
-final class CampaignPricingService
+final readonly class CampaignPricingService
 {
     public function __construct(
         #[Autowire('%app.marketing.campaign.active%')]
-        private readonly bool $active,
+        private bool $active,
         #[Autowire('%app.marketing.campaign.discount_type%')]
-        private readonly string $discountType,
+        private string $discountType,
         #[Autowire('%app.marketing.campaign.discount_value%')]
-        private readonly int|float $discountValue,
+        private int|float $discountValue,
     ) {
     }
 

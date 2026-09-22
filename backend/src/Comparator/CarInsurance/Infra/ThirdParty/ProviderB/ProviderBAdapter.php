@@ -42,7 +42,7 @@ final class ProviderBAdapter extends HttpProviderAdapter
         return [
             'driver_profile' => ['date_of_birth' => $request->birthDate->toIsoString()],
             'car_info' => [
-                'category' => self::category($request->vehicleType),
+                'category' => $this->category($request->vehicleType),
                 'commercial_use' => UsageType::COMMERCIAL === $request->usageType,
             ],
         ];
@@ -64,7 +64,7 @@ final class ProviderBAdapter extends HttpProviderAdapter
         );
     }
 
-    private static function category(VehicleType $type): string
+    private function category(VehicleType $type): string
     {
         return match ($type) {
             VehicleType::SEDAN => 'sedan',

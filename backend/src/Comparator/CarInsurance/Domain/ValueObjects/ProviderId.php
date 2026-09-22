@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace App\Comparator\CarInsurance\Domain\ValueObjects;
 
-final class ProviderId
+final readonly class ProviderId
 {
-    private function __construct(public readonly string $value)
+    private function __construct(public string $value)
     {
     }
 

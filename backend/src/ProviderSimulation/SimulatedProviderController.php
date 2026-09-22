@@ -10,9 +10,9 @@ use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Attribute\Route;
 
 /** Endpoint interno que simula a un partner externo por HTTP real de loopback (architecture.md §3). */
-final class SimulatedProviderController
+final readonly class SimulatedProviderController
 {
-    public function __construct(private readonly SimulatedProviderGateway $gateway)
+    public function __construct(private SimulatedProviderGateway $gateway)
     {
     }
 
@@ -25,7 +25,7 @@ final class SimulatedProviderController
         }
 
         $simulated = $this->gateway->handle($providerId, $payload);
-        if (null === $simulated) {
+        if (!$simulated instanceof \App\ProviderSimulation\SimulatedResponse) {
             return new JsonResponse(['error' => 'unknown_provider'], Response::HTTP_NOT_FOUND);
         }
 

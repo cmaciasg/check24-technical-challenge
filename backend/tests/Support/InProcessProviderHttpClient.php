@@ -18,16 +18,16 @@ use Symfony\Contracts\HttpClient\ResponseStreamInterface;
  * Cliente HTTP que atiende la petición llamando al simulador dentro del mismo proceso.
  * Un pico de latencia se traduce en una excepción inmediata y en un reloj adelantado hasta el techo: nadie espera nada.
  */
-final class InProcessProviderHttpClient implements HttpClientInterface
+final readonly class InProcessProviderHttpClient implements HttpClientInterface
 {
-    private readonly MockHttpClient $inner;
+    private MockHttpClient $inner;
 
     public function __construct(SimulatedProviderGateway $gateway, SimulatedTimeClock $clock, #[Autowire('%app.providers.timeout_ms%')] int $timeoutMs)
     {
         $this->inner = new MockHttpClient(static function (string $method, string $url, array $options) use ($gateway, $clock, $timeoutMs): MockResponse {
             preg_match('#/simulated-providers/([^/]+)/quote$#', $url, $matches);
             $simulated = $gateway->handle($matches[1] ?? '', json_decode($options['body'], true));
-            if (null === $simulated) {
+            if (!$simulated instanceof \App\ProviderSimulation\SimulatedResponse) {
                 return new MockResponse('', ['http_code' => 404]);
             }
             if (SimulatedOutcomeKind::SPIKE === $simulated->kind) {

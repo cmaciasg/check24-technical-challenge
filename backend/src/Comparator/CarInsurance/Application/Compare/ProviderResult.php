@@ -8,15 +8,15 @@ use App\Comparator\CarInsurance\Domain\Model\ComparisonOffer;
 use App\Comparator\CarInsurance\Domain\ValueObjects\ProviderId;
 use App\Comparator\CarInsurance\Domain\ValueObjects\ProviderName;
 
-final class ProviderResult
+final readonly class ProviderResult
 {
     private function __construct(
-        public readonly ProviderId $providerId,
-        public readonly ProviderName $providerName,
-        public readonly bool $success,
-        public readonly ?ComparisonOffer $offer,
-        public readonly ?ProviderFailureReason $failureReason,
-        public readonly int $elapsedMs,
+        public ProviderId $providerId,
+        public ProviderName $providerName,
+        public bool $success,
+        public ?ComparisonOffer $offer,
+        public ?ProviderFailureReason $failureReason,
+        public int $elapsedMs,
     ) {
     }
 

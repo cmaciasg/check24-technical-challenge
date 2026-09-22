@@ -4,13 +4,13 @@ declare(strict_types=1);
 
 namespace App\ProviderSimulation;
 
-final class SimulatedResponse
+final readonly class SimulatedResponse
 {
     public function __construct(
-        public readonly int $status,
-        public readonly string $body,
-        public readonly int $latencyMs,
-        public readonly SimulatedOutcomeKind $kind,
+        public int $status,
+        public string $body,
+        public int $latencyMs,
+        public SimulatedOutcomeKind $kind,
     ) {
     }
 }

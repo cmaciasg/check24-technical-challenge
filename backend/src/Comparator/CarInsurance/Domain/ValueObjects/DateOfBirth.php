@@ -6,14 +6,14 @@ namespace App\Comparator\CarInsurance\Domain\ValueObjects;
 
 use App\Comparator\CarInsurance\Domain\Exception\InvalidQuoteRequest;
 
-final class DateOfBirth
+final readonly class DateOfBirth
 {
     private const FIELD = 'birthDate';
     private const MIN_AGE = 18;
     private const MAX_AGE = 99;
 
     private function __construct(
-        public readonly \DateTimeImmutable $value,
+        public \DateTimeImmutable $value,
     ) {
     }
 

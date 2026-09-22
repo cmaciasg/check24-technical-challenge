@@ -9,11 +9,11 @@ use Symfony\Component\HttpKernel\Event\RequestEvent;
 use Symfony\Component\HttpKernel\Event\ResponseEvent;
 use Symfony\Component\HttpKernel\KernelEvents;
 
-final class RequestIdSubscriber implements EventSubscriberInterface
+final readonly class RequestIdSubscriber implements EventSubscriberInterface
 {
     public const HEADER = 'X-Request-Id';
 
-    public function __construct(private readonly RequestIdHolder $holder)
+    public function __construct(private RequestIdHolder $holder)
     {
     }
 

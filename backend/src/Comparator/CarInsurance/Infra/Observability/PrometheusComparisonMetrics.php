@@ -20,15 +20,15 @@ use Symfony\Component\DependencyInjection\Attribute\AutowireIterator;
  * Único sitio con nombres de métrica, etiquetas y tramos (observability.md §3).
  * Las etiquetas salen siempre de enums o de ids de provider: conjuntos cerrados.
  */
-final class PrometheusComparisonMetrics implements ComparisonMetrics
+final readonly class PrometheusComparisonMetrics implements ComparisonMetrics
 {
     private const PROVIDER_OK = 'ok';
 
     /** @param iterable<ProviderPort> $providers */
     public function __construct(
-        private readonly CollectorRegistry $registry,
+        private CollectorRegistry $registry,
         #[AutowireIterator(ProviderPort::TAG)]
-        private readonly iterable $providers,
+        private iterable $providers,
     ) {
     }
 

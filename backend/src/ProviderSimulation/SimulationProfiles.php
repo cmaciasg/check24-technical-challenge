@@ -6,10 +6,10 @@ namespace App\ProviderSimulation;
 
 use Symfony\Component\DependencyInjection\Attribute\Autowire;
 
-final class SimulationProfiles
+final readonly class SimulationProfiles
 {
     /** @var array<string, SimulationProfile> */
-    private readonly array $profiles;
+    private array $profiles;
 
     /** @param array<string, array<string, mixed>> $config */
     public function __construct(

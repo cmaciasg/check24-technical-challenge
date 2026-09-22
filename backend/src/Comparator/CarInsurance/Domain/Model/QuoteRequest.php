@@ -9,12 +9,12 @@ use App\Comparator\CarInsurance\Domain\ValueObjects\DateOfBirth;
 use App\Comparator\CarInsurance\Domain\ValueObjects\UsageType;
 use App\Comparator\CarInsurance\Domain\ValueObjects\VehicleType;
 
-final class QuoteRequest
+final readonly class QuoteRequest
 {
     public function __construct(
-        public readonly DateOfBirth $birthDate,
-        public readonly VehicleType $vehicleType,
-        public readonly UsageType $usageType,
+        public DateOfBirth $birthDate,
+        public VehicleType $vehicleType,
+        public UsageType $usageType,
     ) {
     }
 

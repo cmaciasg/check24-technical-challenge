@@ -64,7 +64,7 @@ final class FakeProvider implements ProviderPort
 
     private function result(): ProviderResult
     {
-        if (null !== $this->failure) {
+        if ($this->failure instanceof \App\Comparator\CarInsurance\Application\Compare\ProviderFailureReason) {
             return ProviderResult::failure($this->id(), $this->name(), $this->failure, $this->elapsedMs);
         }
 

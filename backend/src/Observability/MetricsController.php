@@ -10,11 +10,11 @@ use Prometheus\RenderTextFormat;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Attribute\Route;
 
-final class MetricsController
+final readonly class MetricsController
 {
     public function __construct(
-        private readonly CollectorRegistry $registry,
-        private readonly ComparisonMetrics $metrics,
+        private CollectorRegistry $registry,
+        private ComparisonMetrics $metrics,
     ) {
     }
 

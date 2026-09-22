@@ -8,9 +8,9 @@ use App\Observability\RequestIdHolder;
 use Monolog\LogRecord;
 use Monolog\Processor\ProcessorInterface;
 
-final class RequestIdProcessor implements ProcessorInterface
+final readonly class RequestIdProcessor implements ProcessorInterface
 {
-    public function __construct(private readonly RequestIdHolder $holder)
+    public function __construct(private RequestIdHolder $holder)
     {
     }
 

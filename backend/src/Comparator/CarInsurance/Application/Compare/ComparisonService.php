@@ -12,12 +12,12 @@ use Symfony\Component\DependencyInjection\Attribute\AutowireIterator;
  * (start()) antes de esperar la respuesta de ninguno y después las recoge en el orden
  * en que se lanzaron (collect()), devolviendo un ProviderResult por provider sin traducirlo.
  */
-final class ComparisonService
+final readonly class ComparisonService
 {
     /** @param iterable<ProviderPort> $providers */
     public function __construct(
         #[AutowireIterator(ProviderPort::TAG)]
-        private readonly iterable $providers,
+        private iterable $providers,
     ) {
     }
 

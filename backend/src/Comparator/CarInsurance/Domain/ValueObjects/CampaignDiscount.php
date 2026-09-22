@@ -4,11 +4,11 @@ declare(strict_types=1);
 
 namespace App\Comparator\CarInsurance\Domain\ValueObjects;
 
-final class CampaignDiscount
+final readonly class CampaignDiscount
 {
     private function __construct(
-        private readonly DiscountType $type,
-        private readonly int|float $value,
+        private DiscountType $type,
+        private int|float $value,
     ) {
     }
 

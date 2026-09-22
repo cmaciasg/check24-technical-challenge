@@ -9,14 +9,14 @@ use App\Comparator\CarInsurance\Domain\ValueObjects\Price;
 use App\Comparator\CarInsurance\Domain\ValueObjects\ProviderId;
 use App\Comparator\CarInsurance\Domain\ValueObjects\ProviderName;
 
-final class ComparisonOffer
+final readonly class ComparisonOffer
 {
     public function __construct(
-        public readonly ProviderId $providerId,
-        public readonly ProviderName $providerName,
-        public readonly string $providerQuoteReference,
-        public readonly Price $price,
-        public readonly CoverageLevel $coverageLevel,
+        public ProviderId $providerId,
+        public ProviderName $providerName,
+        public string $providerQuoteReference,
+        public Price $price,
+        public CoverageLevel $coverageLevel,
     ) {
     }
 }

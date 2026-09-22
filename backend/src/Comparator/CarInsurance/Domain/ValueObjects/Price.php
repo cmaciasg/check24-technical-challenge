@@ -4,13 +4,13 @@ declare(strict_types=1);
 
 namespace App\Comparator\CarInsurance\Domain\ValueObjects;
 
-final class Price
+final readonly class Price
 {
     private const SUPPORTED_CURRENCY = 'EUR';
 
     private function __construct(
-        public readonly int $amountCents,
-        public readonly string $currencyCode,
+        public int $amountCents,
+        public string $currencyCode,
     ) {
         if ($amountCents < 0) {
             throw new \InvalidArgumentException('A price must not be negative.');

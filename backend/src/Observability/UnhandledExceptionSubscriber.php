@@ -17,11 +17,11 @@ use Symfony\Component\HttpKernel\KernelEvents;
  * Convierte cualquier fallo propio no controlado de POST /comparison en un 500, lo cuenta y lo registra.
  * No incluye el mensaje de la excepción ni los argumentos de la traza: podrían citar la fecha de nacimiento.
  */
-final class UnhandledExceptionSubscriber implements EventSubscriberInterface
+final readonly class UnhandledExceptionSubscriber implements EventSubscriberInterface
 {
     public function __construct(
-        private readonly ComparisonMetrics $metrics,
-        private readonly LoggerInterface $logger,
+        private ComparisonMetrics $metrics,
+        private LoggerInterface $logger,
     ) {
     }
 
@@ -43,13 +43,13 @@ final class UnhandledExceptionSubscriber implements EventSubscriberInterface
             'exception_class' => $exception::class,
             'file' => $exception->getFile(),
             'line' => $exception->getLine(),
-            'trace' => self::traceWithoutArguments($exception),
+            'trace' => $this->traceWithoutArguments($exception),
         ]);
 
         $event->setResponse(new JsonResponse(['error' => 'internal_error'], Response::HTTP_INTERNAL_SERVER_ERROR));
     }
 
-    private static function traceWithoutArguments(\Throwable $exception): string
+    private function traceWithoutArguments(\Throwable $exception): string
     {
         $frames = [];
         foreach ($exception->getTrace() as $frame) {

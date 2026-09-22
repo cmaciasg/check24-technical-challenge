@@ -84,7 +84,7 @@ final class CompareQuotesTest extends TestCase
         ]);
 
         $recorded = array_map(
-            static fn ($r): array => [$r->providerId->value, $r->success, $r->failureReason?->value, $r->elapsedMs],
+            static fn (\App\Comparator\CarInsurance\Application\Compare\ProviderResult $r): array => [$r->providerId->value, $r->success, $r->failureReason?->value, $r->elapsedMs],
             $this->metrics->providerCalls,
         );
         self::assertSame([['provider-a', true, null, 150], ['provider-c', false, 'http_error', 210]], $recorded);

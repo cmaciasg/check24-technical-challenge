@@ -9,14 +9,14 @@ use App\Comparator\CarInsurance\Domain\Model\QuoteRequest;
 use Psr\Clock\ClockInterface;
 use Psr\Log\LoggerInterface;
 
-final class CompareQuotes
+final readonly class CompareQuotes
 {
     public function __construct(
-        private readonly ComparisonService $comparisonService,
-        private readonly CampaignPricingService $campaignPricing,
-        private readonly ComparisonMetrics $metrics,
-        private readonly LoggerInterface $logger,
-        private readonly ClockInterface $clock,
+        private ComparisonService $comparisonService,
+        private CampaignPricingService $campaignPricing,
+        private ComparisonMetrics $metrics,
+        private LoggerInterface $logger,
+        private ClockInterface $clock,
     ) {
     }
 
@@ -79,7 +79,7 @@ final class CompareQuotes
 
     private function logFailure(ProviderResult $result): void
     {
-        if ($result->success || null === $result->failureReason) {
+        if ($result->success || !$result->failureReason instanceof \App\Comparator\CarInsurance\Application\Compare\ProviderFailureReason) {
             return;
         }
 

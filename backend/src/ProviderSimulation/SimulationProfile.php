@@ -5,18 +5,18 @@ declare(strict_types=1);
 namespace App\ProviderSimulation;
 
 /** Perfil de comportamiento de un provider simulado (parámetros app.providers.simulation.*). */
-final class SimulationProfile
+final readonly class SimulationProfile
 {
     /**
      * @param array{int, int} $normalLatencyMs
      * @param array{int, int} $spikeLatencyMs
      */
     public function __construct(
-        public readonly array $normalLatencyMs,
-        public readonly array $spikeLatencyMs,
-        public readonly float $spikePercent,
-        public readonly float $httpErrorPercent,
-        public readonly float $malformedPercent,
+        public array $normalLatencyMs,
+        public array $spikeLatencyMs,
+        public float $spikePercent,
+        public float $httpErrorPercent,
+        public float $malformedPercent,
     ) {
     }
 

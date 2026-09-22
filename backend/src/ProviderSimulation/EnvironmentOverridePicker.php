@@ -17,23 +17,23 @@ use Symfony\Component\DependencyInjection\Attribute\Autowire;
  * Sin variables definidas delega en el picker real.
  */
 #[AsDecorator(decorates: RandomProviderOutcomePicker::class)]
-final class EnvironmentOverridePicker implements ProviderOutcomePicker
+final readonly class EnvironmentOverridePicker implements ProviderOutcomePicker
 {
     /** @var array<string, string> */
-    private readonly array $forcedKinds;
+    private array $forcedKinds;
     /** @var array<string, string> */
-    private readonly array $forcedLatencies;
+    private array $forcedLatencies;
 
     public function __construct(
-        private readonly ProviderOutcomePicker $inner,
-        private readonly SimulationProfiles $profiles,
+        private ProviderOutcomePicker $inner,
+        private SimulationProfiles $profiles,
         #[Autowire('%env(string:SIMULATION_FORCE)%')]
         string $force,
         #[Autowire('%env(string:SIMULATION_LATENCY_MS)%')]
         string $latency,
     ) {
-        $this->forcedKinds = self::parse($force);
-        $this->forcedLatencies = self::parse($latency);
+        $this->forcedKinds = $this->parse($force);
+        $this->forcedLatencies = $this->parse($latency);
     }
 
     public function pick(string $providerId): SimulatedOutcome
@@ -54,7 +54,7 @@ final class EnvironmentOverridePicker implements ProviderOutcomePicker
     }
 
     /** @return array<string, string> */
-    private static function parse(string $value): array
+    private function parse(string $value): array
     {
         $parsed = [];
         foreach (explode(',', $value) as $pair) {

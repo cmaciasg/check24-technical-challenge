@@ -7,11 +7,11 @@ namespace App\Comparator\CarInsurance\Application\Campaign;
 use App\Comparator\CarInsurance\Domain\Model\ComparisonOffer;
 use App\Comparator\CarInsurance\Domain\ValueObjects\Price;
 
-final class PricedOffer
+final readonly class PricedOffer
 {
     public function __construct(
-        public readonly ComparisonOffer $offer,
-        public readonly ?Price $discountedPrice,
+        public ComparisonOffer $offer,
+        public ?Price $discountedPrice,
     ) {
     }
 }

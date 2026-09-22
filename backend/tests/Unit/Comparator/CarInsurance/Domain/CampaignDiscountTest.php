@@ -58,9 +58,9 @@ final class CampaignDiscountTest extends TestCase
     /** @return iterable<string, array{\Closure}> */
     public static function invalidDiscounts(): iterable
     {
-        yield 'negative percentage' => [static fn () => CampaignDiscount::percentage(-1)];
-        yield 'percentage above 100' => [static fn () => CampaignDiscount::percentage(100.5)];
-        yield 'negative fixed amount' => [static fn () => CampaignDiscount::fixedAmount(-1)];
+        yield 'negative percentage' => [static fn (): \App\Comparator\CarInsurance\Domain\ValueObjects\CampaignDiscount => CampaignDiscount::percentage(-1)];
+        yield 'percentage above 100' => [static fn (): \App\Comparator\CarInsurance\Domain\ValueObjects\CampaignDiscount => CampaignDiscount::percentage(100.5)];
+        yield 'negative fixed amount' => [static fn (): \App\Comparator\CarInsurance\Domain\ValueObjects\CampaignDiscount => CampaignDiscount::fixedAmount(-1)];
     }
 
     public function testBuildsFromConfiguredType(): void
