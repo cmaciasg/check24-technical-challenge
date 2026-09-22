@@ -241,7 +241,7 @@ Cada nivel se lanza con un comando:
 | `make test` | Unitarios (backend y frontend) e integración, en contenedor | Constantemente en local; en CI, en cada push |
 | `make test-realtime` | Suite de tiempo real (requiere el stack de test levantado) | En local cuando se toque el timeout o la concurrencia; en CI, en cada PR hacia la rama principal |
 | `make test-e2e` | E2E con Playwright (requiere el stack de test levantado) | Igual que el anterior |
-| `make test-all` | Todo lo anterior | Antes de entregar |
+| `make test-all` | `test` + `test-alerts` + `test-realtime` + `test-e2e` (no incluye `lint` ni `coverage`) | Antes de entregar |
 | `make lint` | PHPStan, ECS, Rector (solo comprobación), `vue-tsc` y ESLint, en contenedor | En local y en CI, en cada push |
 | `make coverage` | Informe de cobertura del backend (§9), en contenedor con PCOV | Antes de entregar |
 | `make test-alerts` | `promtool check rules` y `promtool test rules` sobre las reglas de alerta (TC-O4), en un contenedor de un solo uso; no necesita el stack levantado | Igual que `make lint` |
