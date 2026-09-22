@@ -13,7 +13,31 @@ const store = useComparisonStore()
 
 <template>
   <main class="view">
-    <h1 class="view__title">{{ t('app.title') }}</h1>
+    <header class="view__header">
+      <span class="view__badge" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path
+            d="M12 2.5l7.5 3v5.2c0 5-3.2 8.6-7.5 10.3-4.3-1.7-7.5-5.3-7.5-10.3V5.5l7.5-3z"
+            fill="currentColor"
+            fill-opacity="0.14"
+          />
+          <path
+            d="M12 2.5l7.5 3v5.2c0 5-3.2 8.6-7.5 10.3-4.3-1.7-7.5-5.3-7.5-10.3V5.5l7.5-3z"
+            stroke="currentColor"
+            stroke-width="1.4"
+            stroke-linejoin="round"
+          />
+          <path
+            d="M8.3 12.3l2.4 2.4 5-5"
+            stroke="currentColor"
+            stroke-width="1.4"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          />
+        </svg>
+      </span>
+      <h1 class="view__title">{{ t('app.title') }}</h1>
+    </header>
 
     <QuoteForm />
 
@@ -43,12 +67,38 @@ const store = useComparisonStore()
 .view {
   max-width: 64rem;
   margin: 0 auto;
-  padding: var(--space-6) var(--space-4);
+  padding: var(--space-8) var(--space-4) var(--space-6);
+}
+
+.view__header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin: 0 0 var(--space-6);
+}
+
+.view__badge {
+  display: grid;
+  place-items: center;
+  width: 2.75rem;
+  height: 2.75rem;
+  flex: none;
+  color: var(--color-primary);
+  background: var(--color-primary-soft);
+  border-radius: var(--radius);
+}
+
+.view__badge svg {
+  width: 1.5rem;
+  height: 1.5rem;
 }
 
 .view__title {
-  margin: 0 0 var(--space-6);
+  margin: 0;
   font-size: 1.75rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--color-text);
 }
 
 .results {

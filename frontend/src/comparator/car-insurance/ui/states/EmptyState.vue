@@ -15,19 +15,23 @@ defineEmits<{ retry: [] }>()
 
 <style scoped>
 .empty {
-  padding: var(--space-6) var(--space-4);
+  padding: var(--space-8) var(--space-4);
+  text-align: center;
   background: var(--color-surface);
-  border-radius: var(--radius);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
   box-shadow: var(--shadow);
 }
 
 .empty__title {
   margin: 0 0 var(--space-2);
   font-size: 1.125rem;
+  font-weight: 700;
 }
 
 .empty__body {
-  margin: 0;
+  margin: 0 auto;
+  max-width: 32rem;
   color: var(--color-muted);
 }
 
@@ -40,7 +44,13 @@ defineEmits<{ retry: [] }>()
   color: var(--color-primary-text);
   background: var(--color-primary);
   border: 0;
-  border-radius: var(--radius);
+  border-radius: var(--radius-sm);
   cursor: pointer;
+  transition: background var(--transition), transform var(--transition);
+}
+
+.empty__retry:hover {
+  background: var(--color-primary-hover);
+  transform: translateY(-1px);
 }
 </style>

@@ -21,19 +21,23 @@ defineEmits<{ retry: [] }>()
 
 <style scoped>
 .error {
-  padding: var(--space-6) var(--space-4);
+  padding: var(--space-8) var(--space-4);
+  text-align: center;
   background: var(--color-danger-bg);
-  border-radius: var(--radius);
+  border: 1px solid #f3c9c5;
+  border-radius: var(--radius-lg);
 }
 
 .error__title {
   margin: 0 0 var(--space-2);
   color: var(--color-danger);
   font-size: 1.125rem;
+  font-weight: 700;
 }
 
 .error__body {
-  margin: 0;
+  margin: 0 auto;
+  max-width: 32rem;
 }
 
 .error__retry {
@@ -45,7 +49,13 @@ defineEmits<{ retry: [] }>()
   color: var(--color-primary-text);
   background: var(--color-primary);
   border: 0;
-  border-radius: var(--radius);
+  border-radius: var(--radius-sm);
   cursor: pointer;
+  transition: background var(--transition), transform var(--transition);
+}
+
+.error__retry:hover {
+  background: var(--color-primary-hover);
+  transform: translateY(-1px);
 }
 </style>

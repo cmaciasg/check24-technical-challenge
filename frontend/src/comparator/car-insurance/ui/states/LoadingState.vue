@@ -17,6 +17,10 @@ import { t } from '../copy'
   gap: var(--space-3);
   padding: var(--space-8) var(--space-4);
   color: var(--color-muted);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
 }
 
 .loading__text {

@@ -46,26 +46,40 @@ const finalCents = computed(() => props.offer.discountedPriceAmountCents ?? prop
 
 <style scoped>
 .card {
+  display: flex;
+  flex-direction: column;
   height: 100%;
   padding: var(--space-4);
   background: var(--color-surface);
-  border-radius: var(--radius);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
   box-shadow: var(--shadow);
+  transition: transform var(--transition), box-shadow var(--transition);
+}
+
+.card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-lift);
 }
 
 .card__provider {
   margin: 0;
-  font-size: 1.125rem;
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--color-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
 }
 
 .card__campaign {
-  display: inline-block;
+  display: inline-flex;
+  align-self: start;
   margin: var(--space-2) 0 0;
-  padding: 0 var(--space-2);
+  padding: var(--space-1) var(--space-2);
   font-size: 0.75rem;
   font-weight: 700;
-  color: var(--color-success);
-  background: #e3f5ea;
+  color: var(--color-accent-text);
+  background: #ffe9d6;
   border-radius: 999px;
 }
 
@@ -79,16 +93,22 @@ const finalCents = computed(() => props.offer.discountedPriceAmountCents ?? prop
 
 .card__original {
   color: var(--color-muted);
+  font-size: 1rem;
 }
 
 .card__final {
-  font-size: 1.75rem;
+  font-size: 1.875rem;
+  font-weight: 700;
+  color: var(--color-primary);
+  letter-spacing: -0.01em;
 }
 
 .card__details {
   display: grid;
   gap: var(--space-2);
-  margin: 0;
+  margin: auto 0 0;
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--color-border);
   color: var(--color-muted);
   font-size: 0.875rem;
 }

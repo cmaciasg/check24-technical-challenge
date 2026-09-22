@@ -25,8 +25,9 @@ defineProps<{ statuses: readonly ProviderStatus[] }>()
 
 .notices__item {
   padding: var(--space-3) var(--space-4);
+  font-size: 0.9375rem;
   background: var(--color-warning-bg);
   border: 1px solid var(--color-warning-border);
-  border-radius: var(--radius);
+  border-radius: var(--radius-sm);
 }
 </style>

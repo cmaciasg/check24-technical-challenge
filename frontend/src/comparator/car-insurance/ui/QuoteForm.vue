@@ -104,7 +104,8 @@ function onInput(field: FieldName, event: Event): void {
   gap: var(--space-4);
   padding: var(--space-6) var(--space-4);
   background: var(--color-surface);
-  border-radius: var(--radius);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
   box-shadow: var(--shadow);
 }
 
@@ -117,7 +118,9 @@ function onInput(field: FieldName, event: Event): void {
 }
 
 .field__label {
+  font-size: 0.875rem;
   font-weight: 600;
+  color: var(--color-muted);
   padding: 0;
 }
 
@@ -125,10 +128,20 @@ function onInput(field: FieldName, event: Event): void {
   min-height: var(--touch-target);
   padding: 0 var(--space-3);
   font: inherit;
-  color: inherit;
+  color: var(--color-text);
   background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius);
+  border: 1.5px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  transition: border-color var(--transition), box-shadow var(--transition);
+}
+
+.field__control:hover {
+  border-color: #b9c3d6;
+}
+
+.field__control:focus-visible {
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 4px var(--color-primary-soft);
 }
 
 .field__control[aria-invalid='true'] {
@@ -146,12 +159,14 @@ function onInput(field: FieldName, event: Event): void {
   align-items: center;
   gap: var(--space-3);
   min-height: var(--touch-target);
+  padding: 0 var(--space-1);
   cursor: pointer;
 }
 
 .radio input {
   width: 1.25rem;
   height: 1.25rem;
+  accent-color: var(--color-primary);
 }
 
 .form__submit {
@@ -162,12 +177,20 @@ function onInput(field: FieldName, event: Event): void {
   color: var(--color-primary-text);
   background: var(--color-primary);
   border: 0;
-  border-radius: var(--radius);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-sm);
   cursor: pointer;
+  transition: background var(--transition), transform var(--transition), box-shadow var(--transition);
 }
 
 .form__submit:hover:not(:disabled) {
   background: var(--color-primary-hover);
+  box-shadow: var(--shadow);
+  transform: translateY(-1px);
+}
+
+.form__submit:active:not(:disabled) {
+  transform: translateY(0);
 }
 
 .form__submit:disabled {
