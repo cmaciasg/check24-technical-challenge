@@ -32,7 +32,7 @@ docker compose up --build
 | Dashboard de Grafana (sin credenciales, solo lectura) | http://localhost:3000 |
 | Prometheus (alertas en `/alerts`) | http://localhost:9090 |
 
-Para que el dashboard tenga datos: `make demo-traffic` (40 peticiones sintéticas, una a una).
+Para que el dashboard tenga datos: `make demo-traffic` (40 comparaciones de prueba, una detrás de otra).
 `make down` para parar y borrar el sistema.
 
 ### Campaña de marketing
@@ -46,9 +46,9 @@ MARKETING_CAMPAIGN_ACTIVE=true MARKETING_CAMPAIGN_DISCOUNT_TYPE=PERCENTAGE MARKE
 
 ## Comandos
 
-Solo necesitan Docker — `test`, `lint` y `coverage` corren en la imagen de desarrollo del backend y
-en la etapa `build` del frontend (`testing.md` §4.1), para que las versiones de las herramientas
-coincidan con las de la app.
+`test`, `lint` y `coverage` solo necesitan Docker: corren en contenedor, con las mismas versiones de
+PHP y de las herramientas que usa la app. Así el resultado no depende de lo que cada uno tenga
+instalado en su máquina. `test-realtime` y `test-e2e` sí necesitan `make install` antes.
 
 | Comando | Qué hace |
 |---|---|
