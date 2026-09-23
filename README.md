@@ -6,6 +6,19 @@ completas están en [`specs/`](specs/), incluidas las decisiones de diseño ante
 ([`specs/decisions.md`](specs/decisions.md)) y los prompts usados para dirigir al agente de
 implementación ([`specs/prompts.md`](specs/prompts.md)).
 
+## Sobre las especificaciones y el uso de IA
+
+Las especificaciones de `specs/` están redactadas con ayuda de IA, y quiero ser explícito sobre ello
+porque el brief pide especificaciones escritas a mano. Las decisiones de diseño, lo que descarté y por
+qué, y la dirección técnica son míos; la redacción no.
+
+La razón es que las especificaciones las va a consumir sobre todo un agente de código. Esa forma
+(decisión explícita, consecuencia testable, referencia cruzada entre documentos) es la que las hace
+autocontenidas. Consideré que una IA escribiría ese registro de forma más consistente y más fácil
+de interpretar por un agente que yo a mano. Revisé cada decisión y cada consecuencia a medida que
+iteraba antes de dar las especificaciones por cerradas, y verifiqué la autocontención al cerrar las
+especificaciones, con la misma prueba que CHECK24 describe en el brief.
+
 *Specs, README and code comments are written in Spanish — happy to provide an English summary on request.*
 
 ## Arranque
