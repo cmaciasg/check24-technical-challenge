@@ -19,8 +19,6 @@ de interpretar por un agente que yo a mano. Revisé cada decisión y cada consec
 iteraba antes de dar las especificaciones por cerradas, y verifiqué la autocontención al cerrar las
 especificaciones, con la misma prueba que CHECK24 describe en el brief.
 
-*Specs, README and code comments are written in Spanish — happy to provide an English summary on request.*
-
 ## Arranque
 
 ```bash
