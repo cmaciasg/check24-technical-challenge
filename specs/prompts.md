@@ -64,3 +64,5 @@ Antes de escribir este prompt hice yo mismo la comprobación de alcance (el dry-
 ## Nota sobre el resto de cada sesión
 
 Fuera de estos cuatro prompts (uno por iteración), la interacción con el agente durante cada sesión fue de aprobación de comandos dentro de `entrega/` y, cuando preguntaba algo sobre el proyecto no cubierto por la spec, la instrucción fija era "decide tú lo que consideres razonable y sigue" — cualquier cosa que decidiera así quedaba registrada como hallazgo de tipo invención en mi cuaderno de trabajo y se resolvía en la siguiente revisión, no se aceptaba en silencio.
+
+Después de la iteración 3 hice dos retoques solo visuales del frontend (título, texto, cabecera y alineación del formulario) con ayuda del asistente de chat de Claude, no del agente de implementación. No cambian lógica ni specs (commits `148e491` y `17dbdc8`).
