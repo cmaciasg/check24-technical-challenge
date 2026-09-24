@@ -2,6 +2,8 @@
 
 Dejo constancia aquí de cómo dirigí al agente de codificación (Claude Code, Sonnet 5) durante la implementación: el prompt que lancé en cada iteración, tal cual se lanzó, y con qué alcance. No hay una única sesión "hazlo todo": es una serie de iteraciones cortas, cada una acotada a un objetivo concreto y revisada contra las specs antes de decidir la siguiente.
 
+Los commits citados están en `historial.bundle`, en la raíz de la entrega (`git clone historial.bundle`).
+
 ## Configuración de las sesiones
 
 Para que la prueba de autocontención de las specs (primera iteración) fuera honesta, ejecuté Claude Code con una carpeta de configuración dedicada, memoria automática desactivada y sin ningún `CLAUDE.md` de proyecto ni skills propias cargadas — solo el conector de Claude Docs de mi cuenta, que no aporta instrucciones de código. Sin esto, cualquier instrucción o hábito mío fuera de `/specs` habría falseado la comprobación de que las specs bastan por sí solas.

@@ -19,6 +19,16 @@ de interpretar por un agente que yo a mano. Revisé cada decisión y cada consec
 iteraba antes de dar las especificaciones por cerradas, y verifiqué la autocontención al cerrar las
 especificaciones, con la misma prueba que CHECK24 describe en el brief.
 
+## Historial de git
+
+El ZIP no incluye `.git`. El historial completo va en `historial.bundle`, en la raíz de la entrega:
+
+```bash
+git clone historial.bundle check24
+```
+
+Crea el repo con todos los commits, incluidos los que cita `specs/prompts.md`.
+
 ## Arranque
 
 ```bash
