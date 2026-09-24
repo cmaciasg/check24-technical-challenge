@@ -14,7 +14,7 @@ Es el prompt que CHECK24 indica que usa para comprobar si sus especificaciones s
 Check the specifications in the specs folder and implement the project specified here.
 ```
 
-Con lo que produjo esta iteración revisé las specs punto por punto: dónde el agente preguntó, dónde inventó algo sin preguntar y dónde contradijo alguna spec. Esa revisión es la que está detrás de `decisions.md` y de los cambios entre versiones de `/specs` en el historial de commits. A partir de ahí las specs quedaron cerradas: los prompts siguientes piden traer el código a la altura de la spec ya corregida, con alcance explícito y sin tocar la spec de nuevo.
+Con lo que produjo esta iteración revisé las specs punto por punto: dónde el agente preguntó, dónde inventó algo sin preguntar y dónde contradijo alguna spec. Esa revisión es la que está detrás de `decisions.md` y de los cambios entre versiones de `/specs` en el historial de commits. A partir de ahí, los prompts siguientes piden traer el código a la altura de la spec ya corregida, con alcance explícito. Los huecos que aparecieron después también se cerraron en la spec: un ajuste de nombres tras la iteración 1 (`architecture.md` §7.2, commit `82e3105`) y, en el pase final de coherencia, la regla de capas en los tests (`architecture.md` §2) y los sets de Rector (`testing.md` §4.1), que en las iteraciones 2 y 3 se habían pasado al agente directamente en el prompt.
 
 ## Iteración 1 — puerto de dos pasos, techo de tiempo, TIMEOUT y elapsedMs
 

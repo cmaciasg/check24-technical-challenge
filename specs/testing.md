@@ -80,7 +80,7 @@ Contiene exactamente dos casos:
 - **`WebTestCase` / `KernelTestCase`** de Symfony para la suite de integración.
 - **`MockHttpClient` / `MockResponse`** de Symfony para simular respuestas y errores de transporte en los tests de adapters.
 - **PCOV o Xdebug** para el informe de cobertura (§9).
-- **PHPStan, ECS y Rector** como análisis estático y estilo, igual que en el resto del código.
+- **PHPStan, ECS y Rector** como análisis estático y estilo, igual que en el resto del código. Rector aplica los sets `deadCode`, `codeQuality`, `typeDeclarations` y `earlyReturn`, más la modernización a PHP 8.4 (`withPhpSets(php84: true)`).
 - Todas las herramientas de esta sección (PHPUnit, PHPStan, ECS, Rector, PCOV) se instalan en la imagen de desarrollo del backend y se ejecutan en contenedor (§11), no en el host.
 - Cada test lleva un atributo `#[Group('TC-x')]` con el identificador del TC que ejercita, para poder ejecutar `phpunit --group TC-1`.
 

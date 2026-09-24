@@ -88,7 +88,7 @@ para levantar la app y ver cambios rápido sin reconstruir imágenes.
   después con `collect()`, en el orden en que se lanzaron. El techo de tiempo (`max_duration`) cuenta
   desde `start()`, así que recoger en orden no alarga el tiempo total (`architecture.md` §3). No se usan
   Fibers: la concurrencia la da el cliente HTTP, no un scheduler propio de PHP — se consideró y se
-  descartó (`specs/decisions.md` §1).
+  descartó (`specs/decisions.md` §2.3).
 - **Por qué al menos 4 workers.** Los tres providers son endpoints HTTP internos reales
   (`src/ProviderSimulation/`), no un `usleep` simulado, para que el timeout y la concurrencia sean de
   verdad. Eso significa que la propia petición de `POST /comparison` mantiene ocupado un worker
