@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Comparator\CarInsurance\Application\Campaign;
 
+use DateTimeImmutable;
+
 use App\Comparator\CarInsurance\Domain\Model\ComparisonOffer;
 use App\Comparator\CarInsurance\Domain\ValueObjects\Price;
 
