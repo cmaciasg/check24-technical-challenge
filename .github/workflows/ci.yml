@@ -1,0 +1,44 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  backend:
+    name: Backend (lint + tests)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup PHP 8.4
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: apcu
+          coverage: none
+          tools: composer:v2
+
+      - name: Install dependencies (cached)
+        uses: ramsey/composer-install@v3
+        with:
+          working-directory: backend
+          composer-options: --no-scripts
+
+      - name: ECS
+        run: vendor/bin/ecs check
+
+      - name: PHPStan
+        run: vendor/bin/phpstan analyse --memory-limit=512M
+
+      - name: Rector (dry-run)
+        run: vendor/bin/rector process --dry-run
+
+      - name: PHPUnit (unit + integration)
+        run: vendor/bin/phpunit --testsuite unit,integration
